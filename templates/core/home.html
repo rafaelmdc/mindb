@@ -21,7 +21,6 @@
       <div class="d-flex flex-wrap gap-2">
         <a class="btn btn-primary btn-lg" href="{% url 'database:browser-home' %}">Open browser</a>
         <a class="btn btn-outline-dark btn-lg" href="{% url 'core:graph' %}">Open graph</a>
-        <a class="btn btn-outline-primary btn-lg" href="{% url 'core:staff-home' %}">Staff</a>
       </div>
     </div>
     <div class="col-lg-5">
@@ -50,10 +49,9 @@
   <div class="col-lg-4">
     <div class="card h-100 shadow-sm feature-card">
       <div class="card-body">
-        <h2 class="h4">What the database contains</h2>
+        <h2 class="h4">The database contents</h2>
         <p class="text-secondary mb-0">
-          Study-level metadata, sample and cohort context, organism records, pairwise relative associations,
-          and controlled flexible metadata for variables that differ across papers.
+          Study metadata, sample context, organism records, pairwise associations, and structured variables curated into one searchable resource.
         </p>
       </div>
     </div>
@@ -63,8 +61,7 @@
       <div class="card-body">
         <h2 class="h4">Why it matters</h2>
         <p class="text-secondary mb-0">
-          Microbiome interactions are easier to reason about when the underlying evidence is normalized,
-          searchable, and tied back to the study and sample context where each association was reported.
+          Microbiome evidence is often scattered and inconsistent. A unified database makes results easier to compare, inspect, and reuse.
         </p>
       </div>
     </div>
@@ -72,10 +69,9 @@
   <div class="col-lg-4">
     <div class="card h-100 shadow-sm feature-card">
       <div class="card-body">
-        <h2 class="h4">Current workflow</h2>
+        <h2 class="h4">How data was curated</h2>
         <p class="text-secondary mb-0">
-          Use the browser for inspection, Django admin for manual curation, and the import workflow for
-          validated batch ingestion. The graph view is available as an exploratory layer over curated associations.
+          Data was reviewed from the literature, normalized into a common schema, and checked before import to preserve provenance and context.
         </p>
       </div>
     </div>

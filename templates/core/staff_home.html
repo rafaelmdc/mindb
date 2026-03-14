@@ -13,7 +13,7 @@
 </section>
 
 <section class="row g-4">
-  <div class="col-lg-6">
+  <div class="col-lg-4">
     <div class="card h-100 shadow-sm feature-card">
       <div class="card-body">
         <h2 class="h4">CSV Imports</h2>
@@ -24,7 +24,7 @@
       </div>
     </div>
   </div>
-  <div class="col-lg-6">
+  <div class="col-lg-4">
     <div class="card h-100 shadow-sm feature-card">
       <div class="card-body">
         <h2 class="h4">Django Admin</h2>
@@ -32,6 +32,17 @@
           Use the admin for manual curation, record-by-record editing, inlines, and internal review workflows.
         </p>
         <a class="btn btn-outline-primary mt-3" href="{% url 'admin:index' %}">Open admin</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100 shadow-sm feature-card">
+      <div class="card-body">
+        <h2 class="h4">Model Diagram</h2>
+        <p class="text-secondary">
+          View an automatically generated schema diagram built directly from the current Django models and relationships.
+        </p>
+        <a class="btn btn-outline-primary mt-3" href="{% url 'core:model-diagram' %}">See model</a>
       </div>
     </div>
   </div>

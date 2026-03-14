@@ -18,6 +18,43 @@
   --default-button-hover-bg: linear-gradient(135deg, #b45309, #d97706);
 }
 
+html {
+  color-scheme: light;
+}
+
+:root,
+html[data-theme="light"],
+html[data-theme="dark"] {
+  --body-bg: #f4f1ea;
+  --body-fg: #132225;
+  --header-bg: #102125;
+  --header-color: #ffffff;
+  --breadcrumbs-bg: rgba(15, 118, 110, 0.1);
+  --breadcrumbs-fg: #0b4f4a;
+  --breadcrumbs-link-fg: #0b4f4a;
+  --link-fg: #0b4f4a;
+  --link-hover-color: #0f766e;
+  --hairline-color: rgba(19, 34, 37, 0.1);
+  --border-color: rgba(19, 34, 37, 0.12);
+  --darkened-bg: rgba(19, 34, 37, 0.04);
+  --selected-bg: rgba(15, 118, 110, 0.08);
+  --selected-row: rgba(15, 118, 110, 0.08);
+  --button-bg: #0f766e;
+  --button-hover-bg: #0b4f4a;
+  --default-button-bg: #d97706;
+  --default-button-hover-bg: #b45309;
+  --close-button-bg: #6b7280;
+  --close-button-hover-bg: #4b5563;
+  --delete-button-bg: #b91c1c;
+  --delete-button-hover-bg: #991b1b;
+  --message-success-bg: #ecfdf5;
+  --message-warning-bg: #fffbeb;
+  --message-error-bg: #fef2f2;
+  --message-info-bg: #eff6ff;
+  --module-header-bg: rgba(15, 118, 110, 0.08);
+  --module-header-fg: #0b4f4a;
+}
+
 body,
 input,
 textarea,
@@ -31,6 +68,12 @@ body {
     radial-gradient(circle at top left, rgba(15, 118, 110, 0.08), transparent 24rem),
     linear-gradient(180deg, #faf7f1 0%, var(--admin-bg) 100%);
   color: var(--admin-ink);
+}
+
+#toggle-theme,
+.theme-toggle,
+button.theme-toggle {
+  display: none !important;
 }
 
 #header {
@@ -86,9 +129,33 @@ div.breadcrumbs a {
 .submit-row,
 .dashboard .module,
 .login #content-main form {
-  background: var(--admin-panel);
+  background: var(--admin-panel) !important;
   border: 1px solid var(--admin-line);
   box-shadow: var(--admin-shadow);
+}
+
+.dashboard .module table,
+.dashboard .module tbody,
+.dashboard .module tr,
+.dashboard .module td,
+.dashboard .module th,
+#result_list,
+#result_list tbody,
+#result_list tr,
+#result_list td,
+#result_list th {
+  background: transparent !important;
+  color: var(--admin-ink) !important;
+}
+
+.dashboard .module table tr:nth-child(odd) td,
+#result_list tr:nth-child(odd) td {
+  background: rgba(19, 34, 37, 0.025) !important;
+}
+
+.dashboard .module table tr:hover td,
+#result_list tr:hover td {
+  background: rgba(15, 118, 110, 0.06) !important;
 }
 
 .dashboard .module table th,
@@ -179,8 +246,8 @@ select:focus {
 .inline-group h2,
 .module h2,
 .module caption {
-  background: rgba(15, 118, 110, 0.08);
-  color: var(--admin-primary-dark);
+  background: rgba(15, 118, 110, 0.08) !important;
+  color: var(--admin-primary-dark) !important;
 }
 
 #changelist-filter h2 {
@@ -196,6 +263,14 @@ select:focus {
 
 .object-tools a {
   border-radius: 999px;
+}
+
+#content-related,
+#content-main,
+#recent-actions-module,
+.dashboard #content-main .module,
+.dashboard .module table caption {
+  color: var(--admin-ink) !important;
 }
 
 @media (max-width: 1024px) {

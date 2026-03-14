@@ -132,6 +132,7 @@ class StaffHomeViewTests(TestCase):
         self.assertContains(response, 'Staff Workspace')
         self.assertContains(response, reverse('imports:upload'))
         self.assertContains(response, reverse('admin:index'))
+        self.assertContains(response, reverse('core:model-diagram'))
 
     def test_staff_home_is_not_available_to_non_staff_users(self):
         self.client.login(username='normal', password='testpass123')
@@ -139,3 +140,17 @@ class StaffHomeViewTests(TestCase):
         response = self.client.get(reverse('core:staff-home'))
 
         self.assertEqual(response.status_code, 404)
+
+    def test_model_diagram_redirects_anonymous_users_to_login(self):
+        response = self.client.get(reverse('core:model-diagram'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
+    def test_model_diagram_renders_for_staff_user(self):
+        self.client.login(username='staff', password='testpass123')
+
+        response = self.client.get(reverse('core:model-diagram'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Model Diagram')

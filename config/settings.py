@@ -140,6 +140,12 @@ USE_I18N = True
 USE_TZ = True
 
 
+# Session timeout: require re-login after 30 minutes of inactivity.
+SESSION_COOKIE_AGE = 60 * 30
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 

@@ -180,6 +180,37 @@ body {
   box-shadow: 0 24px 64px rgba(23, 35, 38, 0.14);
 }
 
+.feature-card p {
+  text-align: center;
+  line-height: 1.55;
+  max-width: 34ch;
+  margin: 0 auto;
+}
+
+.feature-card .card-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 220px;
+  padding: 1.85rem;
+}
+
+.feature-card h2 {
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.diagram-shell {
+  overflow: auto;
+}
+
+.diagram-shell svg {
+  width: 100%;
+  height: auto;
+  min-width: 960px;
+}
+
 .stat-link {
   color: inherit;
 }

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Model Diagram{% endblock %}
+{% block body_class %}staff-page{% endblock %}
+
+{% block content %}
+<section class="page-intro detail-hero mb-4">
+  <span class="eyebrow-chip mb-3">Protected staff workspace</span>
+  <h1 class="mb-2">Model Diagram</h1>
+  <p class="text-secondary mb-0">
+    Automatically generated schema view from the current Django models and their relationships.
+  </p>
+</section>
+
+{% if diagram_error %}
+  <div class="alert alert-warning">
+    Unable to render the model diagram right now: {{ diagram_error }}
+  </div>
+{% else %}
+  <div class="card shadow-sm data-shell">
+    <div class="card-body p-4 diagram-shell">
+      {{ diagram_svg }}
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

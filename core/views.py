@@ -1,11 +1,13 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import Http404
+from django.utils.safestring import mark_safe
 from django.views.generic import TemplateView
 
 from database.models import Organism, RelativeAssociation, Sample, Study
 
 from .graph import build_association_graph
+from .model_diagram import render_model_diagram_svg
 
 
 class HomeView(TemplateView):
@@ -47,6 +49,27 @@ class StaffHomeView(LoginRequiredMixin, TemplateView):
         if request.user.is_authenticated and not request.user.is_staff:
             raise Http404()
         return response
+
+
+class ModelDiagramView(LoginRequiredMixin, TemplateView):
+    template_name = 'core/model_diagram.html'
+    login_url = '/admin/login/'
+
+    def dispatch(self, request, *args, **kwargs):
+        response = super().dispatch(request, *args, **kwargs)
+        if request.user.is_authenticated and not request.user.is_staff:
+            raise Http404()
+        return response
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        try:
+            context['diagram_svg'] = mark_safe(render_model_diagram_svg())
+            context['diagram_error'] = ''
+        except Exception as exc:
+            context['diagram_svg'] = ''
+            context['diagram_error'] = str(exc)
+        return context
 
 
 class GraphView(TemplateView):
