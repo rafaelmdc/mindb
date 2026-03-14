@@ -1,4 +1,6 @@
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
+from django.http import Http404
 from django.views.generic import TemplateView
 
 from database.models import Organism, RelativeAssociation, Sample, Study
@@ -34,6 +36,17 @@ class HomeView(TemplateView):
             },
         ]
         return context
+
+
+class StaffHomeView(LoginRequiredMixin, TemplateView):
+    template_name = 'core/staff_home.html'
+    login_url = '/admin/login/'
+
+    def dispatch(self, request, *args, **kwargs):
+        response = super().dispatch(request, *args, **kwargs)
+        if request.user.is_authenticated and not request.user.is_staff:
+            raise Http404()
+        return response
 
 
 class GraphView(TemplateView):

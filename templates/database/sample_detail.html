@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 
 {% block title %}{{ sample.label }}{% endblock %}
+{% block body_class %}detail-page{% endblock %}
 
 {% block content %}
-<div class="mb-4">
-  <a class="btn btn-sm btn-outline-secondary mb-3" href="{% url 'database:sample-list' %}">Back to samples</a>
+<div class="page-intro detail-hero mb-4">
+  <a class="back-link mb-3" href="{% url 'database:sample-list' %}">Back to samples</a>
   <h1 class="mb-1">{{ sample.label }}</h1>
   <p class="text-secondary mb-0">
     <a href="{% url 'database:study-detail' sample.study.pk %}">{{ sample.study.title }}</a>
@@ -13,10 +14,10 @@
 
 <div class="row g-4">
   <div class="col-lg-4">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm detail-card">
       <div class="card-body">
         <h2 class="h5">Sample details</h2>
-        <dl class="row mb-0">
+        <dl class="row mb-0 detail-grid">
           <dt class="col-sm-4">Site</dt>
           <dd class="col-sm-8">{{ sample.site|default:"-" }}</dd>
           <dt class="col-sm-4">Method</dt>
@@ -29,10 +30,10 @@
       </div>
     </div>
     {% if sample.core_metadata %}
-      <div class="card shadow-sm mt-4">
+      <div class="card shadow-sm detail-card mt-4">
         <div class="card-body">
           <h2 class="h5">Core metadata</h2>
-          <dl class="row mb-0">
+          <dl class="row mb-0 detail-grid">
             <dt class="col-sm-5">Condition</dt>
             <dd class="col-sm-7">{{ sample.core_metadata.condition|default:"-" }}</dd>
             <dt class="col-sm-5">Male %</dt>
@@ -47,7 +48,7 @@
     {% endif %}
   </div>
   <div class="col-lg-8">
-    <div class="card shadow-sm mb-4">
+    <div class="card shadow-sm data-shell mb-4">
       <div class="card-body">
         <h2 class="h5">Metadata values</h2>
         <div class="table-responsive">
@@ -77,7 +78,7 @@
       </div>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm data-shell">
       <div class="card-body">
         <h2 class="h5">Relative associations</h2>
         <div class="table-responsive">

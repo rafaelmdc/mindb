@@ -1,3 +1,4 @@
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
@@ -35,8 +36,8 @@ class HomeViewTests(TestCase):
         self.assertContains(response, 'Organisms')
         self.assertContains(response, 'Associations')
         self.assertContains(response, reverse('database:browser-home'))
-        self.assertContains(response, reverse('imports:upload'))
         self.assertContains(response, reverse('core:graph'))
+        self.assertContains(response, reverse('core:staff-home'))
 
 
 class GraphViewTests(TestCase):
@@ -100,3 +101,41 @@ class GraphViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['graph_data']['summary']['node_count'], 2)
         self.assertEqual(response.context['graph_data']['summary']['edge_count'], 1)
+
+
+class StaffHomeViewTests(TestCase):
+    def setUp(self):
+        self.user_model = get_user_model()
+        self.staff_user = self.user_model.objects.create_user(
+            username='staff',
+            password='testpass123',
+            is_staff=True,
+        )
+        self.normal_user = self.user_model.objects.create_user(
+            username='normal',
+            password='testpass123',
+            is_staff=False,
+        )
+
+    def test_staff_home_redirects_anonymous_users_to_login(self):
+        response = self.client.get(reverse('core:staff-home'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
+    def test_staff_home_renders_for_staff_user(self):
+        self.client.login(username='staff', password='testpass123')
+
+        response = self.client.get(reverse('core:staff-home'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Staff Workspace')
+        self.assertContains(response, reverse('imports:upload'))
+        self.assertContains(response, reverse('admin:index'))
+
+    def test_staff_home_is_not_available_to_non_staff_users(self):
+        self.client.login(username='normal', password='testpass123')
+
+        response = self.client.get(reverse('core:staff-home'))
+
+        self.assertEqual(response.status_code, 404)

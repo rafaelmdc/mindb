@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}Interaction Graph{% endblock %}
+{% block body_class %}graph-page{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-end mb-4">
+<div class="page-intro d-flex justify-content-between align-items-end mb-4">
   <div>
     <h1 class="mb-1">Interaction Graph</h1>
     <p class="text-secondary mb-0">
@@ -13,7 +14,7 @@
   <a class="btn btn-outline-secondary" href="{% url 'database:relativeassociation-list' %}">Open association browser</a>
 </div>
 
-<form method="get" class="card card-body shadow-sm mb-4">
+<form method="get" class="card card-body shadow-sm filter-card mb-4">
   <div class="row g-3">
     <div class="col-md-3">
       <label class="form-label" for="id_study">Study</label>
@@ -50,7 +51,7 @@
 
 <div class="row g-4 mb-4">
   <div class="col-md-4">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm metric-card">
       <div class="card-body">
         <p class="text-uppercase text-secondary small mb-2">Nodes</p>
         <p class="display-6 mb-0">{{ graph_data.summary.node_count }}</p>
@@ -58,7 +59,7 @@
     </div>
   </div>
   <div class="col-md-4">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm metric-card">
       <div class="card-body">
         <p class="text-uppercase text-secondary small mb-2">Edges</p>
         <p class="display-6 mb-0">{{ graph_data.summary.edge_count }}</p>
@@ -66,7 +67,7 @@
     </div>
   </div>
   <div class="col-md-4">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm metric-card">
       <div class="card-body">
         <p class="text-uppercase text-secondary small mb-2">Supporting associations</p>
         <p class="display-6 mb-0">{{ graph_data.summary.association_count }}</p>
@@ -76,13 +77,13 @@
 </div>
 
 {% if graph_data.summary.edge_count %}
-  <div class="card shadow-sm mb-4">
+  <div class="card shadow-sm graph-shell mb-4">
     <div class="card-body">
       <div id="graph-canvas" style="height: 560px;"></div>
     </div>
   </div>
 
-  <div class="card shadow-sm">
+  <div class="card shadow-sm data-shell">
     <div class="card-body">
       <h2 class="h5">Current graph payload</h2>
       <p class="text-secondary">
@@ -117,13 +118,14 @@
     </div>
   </div>
 {% else %}
-  <div class="alert alert-secondary mb-0">
+  <div class="alert alert-secondary empty-state mb-0">
     No associations matched the current filters, so no graph could be generated.
   </div>
 {% endif %}
 
 {{ graph_data|json_script:"graph-data" }}
 <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+{% block extra_js %}
 <script>
   const graphElement = document.getElementById('graph-canvas');
   if (graphElement) {
@@ -162,4 +164,5 @@
     });
   }
 </script>
+{% endblock %}
 {% endblock %}

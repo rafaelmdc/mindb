@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 
 {% block title %}{{ study.title }}{% endblock %}
+{% block body_class %}detail-page{% endblock %}
 
 {% block content %}
-<div class="mb-4">
-  <a class="btn btn-sm btn-outline-secondary mb-3" href="{% url 'database:study-list' %}">Back to studies</a>
+<div class="page-intro detail-hero mb-4">
+  <a class="back-link mb-3" href="{% url 'database:study-list' %}">Back to studies</a>
   <h1 class="mb-1">{{ study.title }}</h1>
   <p class="text-secondary mb-0">
     {{ study.journal|default:"Journal not recorded" }}
@@ -14,10 +15,10 @@
 
 <div class="row g-4">
   <div class="col-lg-4">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm detail-card">
       <div class="card-body">
         <h2 class="h5">Study details</h2>
-        <dl class="row mb-0">
+        <dl class="row mb-0 detail-grid">
           <dt class="col-sm-4">DOI</dt>
           <dd class="col-sm-8">{{ study.source_doi|default:"-" }}</dd>
           <dt class="col-sm-4">Country</dt>
@@ -28,7 +29,7 @@
       </div>
     </div>
     {% if study.notes %}
-      <div class="card shadow-sm mt-4">
+      <div class="card shadow-sm detail-card mt-4">
         <div class="card-body">
           <h2 class="h5">Notes</h2>
           <p class="mb-0">{{ study.notes }}</p>
@@ -37,7 +38,7 @@
     {% endif %}
   </div>
   <div class="col-lg-8">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm data-shell">
       <div class="card-body">
         <h2 class="h5">Samples</h2>
         <div class="table-responsive">

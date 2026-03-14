@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}Database Browser{% endblock %}
+{% block body_class %}browser-home-page{% endblock %}
 
 {% block content %}
-<div class="mb-4">
+<div class="page-intro mb-4">
   <h1 class="mb-2">Database Browser</h1>
   <p class="text-secondary mb-0">
     Browse curated studies, samples, organisms, and pairwise associations.
@@ -13,7 +14,7 @@
 <div class="row g-4">
   {% for card in cards %}
     <div class="col-md-6 col-xl-3">
-      <div class="card h-100 shadow-sm">
+      <div class="card h-100 shadow-sm feature-card browser-card">
         <div class="card-body">
           <p class="text-uppercase text-secondary small mb-2">{{ card.title }}</p>
           <p class="display-6 mb-3">{{ card.count }}</p>

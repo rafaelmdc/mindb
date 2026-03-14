@@ -46,11 +46,11 @@ body {
 .site-nav-shell {
   margin-top: 1rem;
   padding: 0.9rem 1rem;
-  background: rgba(19, 34, 37, 0.8);
+  background: #445255;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
-  backdrop-filter: blur(18px);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
+  overflow: visible;
 }
 
 .navbar-brand {
@@ -73,10 +73,12 @@ body {
   width: 2.35rem;
   height: 2.35rem;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--site-accent), #f59e0b);
-  color: #102125;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f6f0e3;
   font-size: 0.85rem;
   font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
 .navbar-nav {
@@ -85,19 +87,25 @@ body {
 
 .nav-link {
   border-radius: 999px;
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 255, 255, 0.88) !important;
   font-weight: 600;
   padding: 0.55rem 0.9rem;
 }
 
 .nav-link:hover,
 .nav-link:focus {
-  color: #fff;
+  color: #fff !important;
   background: rgba(255, 255, 255, 0.08);
 }
 
 .nav-link-admin {
   background: rgba(255, 255, 255, 0.12);
+}
+
+.navbar,
+.navbar-collapse,
+.navbar-nav {
+  overflow: visible;
 }
 
 .site-main {

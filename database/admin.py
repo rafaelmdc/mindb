@@ -11,6 +11,10 @@ from .models import (
     Study,
 )
 
+admin.site.site_header = 'Innov Health Microbiome Admin'
+admin.site.site_title = 'Innov Health Microbiome Admin'
+admin.site.index_title = 'Curation Workspace'
+
 
 class CoreMetadataInline(admin.StackedInline):
     model = CoreMetadata

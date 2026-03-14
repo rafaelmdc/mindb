@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 
 {% block title %}{{ association.association_type }}{% endblock %}
+{% block body_class %}detail-page{% endblock %}
 
 {% block content %}
-<div class="mb-4">
-  <a class="btn btn-sm btn-outline-secondary mb-3" href="{% url 'database:relativeassociation-list' %}">Back to associations</a>
+<div class="page-intro detail-hero mb-4">
+  <a class="back-link mb-3" href="{% url 'database:relativeassociation-list' %}">Back to associations</a>
   <h1 class="mb-1">{{ association.association_type }}</h1>
   <p class="text-secondary mb-0">
     <a href="{% url 'database:sample-detail' association.sample.pk %}">{{ association.sample.label }}</a>
@@ -15,10 +16,10 @@
 
 <div class="row g-4">
   <div class="col-lg-4">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm detail-card">
       <div class="card-body">
         <h2 class="h5">Association details</h2>
-        <dl class="row mb-0">
+        <dl class="row mb-0 detail-grid">
           <dt class="col-sm-5">Sign</dt>
           <dd class="col-sm-7">{{ association.get_sign_display|default:"-" }}</dd>
           <dt class="col-sm-5">Value</dt>
@@ -44,19 +45,19 @@
     </div>
   </div>
   <div class="col-lg-8">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm detail-card">
       <div class="card-body">
         <h2 class="h5">Organism pair</h2>
         <div class="row">
           <div class="col-md-6">
-            <div class="border rounded p-3 h-100">
+            <div class="pair-card p-3 h-100">
               <p class="text-uppercase text-secondary small mb-2">Organism 1</p>
               <h3 class="h5 mb-1"><a href="{% url 'database:organism-detail' association.organism_1.pk %}">{{ association.organism_1.scientific_name }}</a></h3>
               <p class="mb-0 text-secondary">NCBI ID {{ association.organism_1.ncbi_taxonomy_id }}</p>
             </div>
           </div>
           <div class="col-md-6 mt-3 mt-md-0">
-            <div class="border rounded p-3 h-100">
+            <div class="pair-card p-3 h-100">
               <p class="text-uppercase text-secondary small mb-2">Organism 2</p>
               <h3 class="h5 mb-1"><a href="{% url 'database:organism-detail' association.organism_2.pk %}">{{ association.organism_2.scientific_name }}</a></h3>
               <p class="mb-0 text-secondary">NCBI ID {{ association.organism_2.ncbi_taxonomy_id }}</p>
@@ -66,7 +67,7 @@
       </div>
     </div>
     {% if association.notes %}
-      <div class="card shadow-sm mt-4">
+      <div class="card shadow-sm detail-card mt-4">
         <div class="card-body">
           <h2 class="h5">Notes</h2>
           <p class="mb-0">{{ association.notes }}</p>
