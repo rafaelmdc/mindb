@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}{{ association.association_type }}{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a class="btn btn-sm btn-outline-secondary mb-3" href="{% url 'database:relativeassociation-list' %}">Back to associations</a>
+  <h1 class="mb-1">{{ association.association_type }}</h1>
+  <p class="text-secondary mb-0">
+    <a href="{% url 'database:sample-detail' association.sample.pk %}">{{ association.sample.label }}</a>
+    ·
+    <a href="{% url 'database:study-detail' association.sample.study.pk %}">{{ association.sample.study.title }}</a>
+  </p>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Association details</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-5">Sign</dt>
+          <dd class="col-sm-7">{{ association.get_sign_display|default:"-" }}</dd>
+          <dt class="col-sm-5">Value</dt>
+          <dd class="col-sm-7">{{ association.value|default:"-" }}</dd>
+          <dt class="col-sm-5">p-value</dt>
+          <dd class="col-sm-7">{{ association.p_value|default:"-" }}</dd>
+          <dt class="col-sm-5">q-value</dt>
+          <dd class="col-sm-7">{{ association.q_value|default:"-" }}</dd>
+          <dt class="col-sm-5">Method</dt>
+          <dd class="col-sm-7">{{ association.method|default:"-" }}</dd>
+          <dt class="col-sm-5">Confidence</dt>
+          <dd class="col-sm-7">{{ association.confidence|default:"-" }}</dd>
+          <dt class="col-sm-5">Import batch</dt>
+          <dd class="col-sm-7">
+            {% if association.import_batch %}
+              <a href="{% url 'admin:database_importbatch_change' association.import_batch.pk %}">{{ association.import_batch.name }}</a>
+            {% else %}
+              -
+            {% endif %}
+          </dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Organism pair</h2>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="border rounded p-3 h-100">
+              <p class="text-uppercase text-secondary small mb-2">Organism 1</p>
+              <h3 class="h5 mb-1"><a href="{% url 'database:organism-detail' association.organism_1.pk %}">{{ association.organism_1.scientific_name }}</a></h3>
+              <p class="mb-0 text-secondary">NCBI ID {{ association.organism_1.ncbi_taxonomy_id }}</p>
+            </div>
+          </div>
+          <div class="col-md-6 mt-3 mt-md-0">
+            <div class="border rounded p-3 h-100">
+              <p class="text-uppercase text-secondary small mb-2">Organism 2</p>
+              <h3 class="h5 mb-1"><a href="{% url 'database:organism-detail' association.organism_2.pk %}">{{ association.organism_2.scientific_name }}</a></h3>
+              <p class="mb-0 text-secondary">NCBI ID {{ association.organism_2.ncbi_taxonomy_id }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% if association.notes %}
+      <div class="card shadow-sm mt-4">
+        <div class="card-body">
+          <h2 class="h5">Notes</h2>
+          <p class="mb-0">{{ association.notes }}</p>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

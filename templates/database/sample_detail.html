@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}{{ sample.label }}{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a class="btn btn-sm btn-outline-secondary mb-3" href="{% url 'database:sample-list' %}">Back to samples</a>
+  <h1 class="mb-1">{{ sample.label }}</h1>
+  <p class="text-secondary mb-0">
+    <a href="{% url 'database:study-detail' sample.study.pk %}">{{ sample.study.title }}</a>
+  </p>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Sample details</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Site</dt>
+          <dd class="col-sm-8">{{ sample.site|default:"-" }}</dd>
+          <dt class="col-sm-4">Method</dt>
+          <dd class="col-sm-8">{{ sample.method|default:"-" }}</dd>
+          <dt class="col-sm-4">Cohort</dt>
+          <dd class="col-sm-8">{{ sample.cohort|default:"-" }}</dd>
+          <dt class="col-sm-4">Size</dt>
+          <dd class="col-sm-8">{{ sample.sample_size|default:"-" }}</dd>
+        </dl>
+      </div>
+    </div>
+    {% if sample.core_metadata %}
+      <div class="card shadow-sm mt-4">
+        <div class="card-body">
+          <h2 class="h5">Core metadata</h2>
+          <dl class="row mb-0">
+            <dt class="col-sm-5">Condition</dt>
+            <dd class="col-sm-7">{{ sample.core_metadata.condition|default:"-" }}</dd>
+            <dt class="col-sm-5">Male %</dt>
+            <dd class="col-sm-7">{{ sample.core_metadata.male_percent|default:"-" }}</dd>
+            <dt class="col-sm-5">Age mean</dt>
+            <dd class="col-sm-7">{{ sample.core_metadata.age_mean|default:"-" }}</dd>
+            <dt class="col-sm-5">BMI mean</dt>
+            <dd class="col-sm-7">{{ sample.core_metadata.bmi_mean|default:"-" }}</dd>
+          </dl>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+  <div class="col-lg-8">
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h2 class="h5">Metadata values</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Variable</th>
+                <th>Value</th>
+                <th>Unit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for value in sample.metadata_values.all %}
+                <tr>
+                  <td>{{ value.variable.display_name }}</td>
+                  <td>{{ value.value_float|default:value.value_int|default:value.value_text|default:value.value_bool }}</td>
+                  <td>{{ value.unit|default:value.variable.default_unit|default:"-" }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="3" class="text-center text-secondary py-3">No flexible metadata recorded for this sample.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Relative associations</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Organism 1</th>
+                <th>Organism 2</th>
+                <th>Type</th>
+                <th>Sign</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for association in sample.relative_associations.all %}
+                <tr>
+                  <td>{{ association.organism_1.scientific_name }}</td>
+                  <td>{{ association.organism_2.scientific_name }}</td>
+                  <td><a href="{% url 'database:relativeassociation-detail' association.pk %}">{{ association.association_type }}</a></td>
+                  <td>{{ association.get_sign_display|default:"-" }}</td>
+                  <td>{{ association.value|default:"-" }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="5" class="text-center text-secondary py-3">No relative associations recorded for this sample.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

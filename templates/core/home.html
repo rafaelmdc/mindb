@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Microbiome Association Database{% endblock %}
+
+{% block content %}
+<section class="py-4 py-lg-5">
+  <div class="row align-items-center g-4">
+    <div class="col-lg-7">
+      <span class="badge text-bg-success mb-3">Curated microbiome knowledge base</span>
+      <h1 class="display-5 fw-semibold mb-3">Microbiome Association Database</h1>
+      <p class="lead text-secondary">
+        A small Django-based database for curated microbiome study data, focused on
+        organism-organism associations, structured sample metadata, and clear internal browsing workflows.
+      </p>
+      <p class="text-secondary mb-4">
+        The project centralizes evidence from published studies so the team can review studies,
+        browse cohorts and samples, inspect organism records, and trace pairwise associations without
+        relying on spreadsheets alone.
+      </p>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-primary btn-lg" href="{% url 'database:browser-home' %}">Open browser</a>
+        <a class="btn btn-outline-success btn-lg" href="{% url 'core:graph' %}">Open graph</a>
+        <a class="btn btn-outline-primary btn-lg" href="{% url 'imports:upload' %}">CSV imports</a>
+        <a class="btn btn-outline-secondary btn-lg" href="{% url 'admin:index' %}">Admin</a>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+          <p class="text-uppercase text-secondary small mb-3">At a glance</p>
+          <div class="row g-3">
+            {% for stat in stats %}
+              <div class="col-6">
+                <a class="text-decoration-none" href="{% url stat.url_name %}">
+                  <div class="border rounded p-3 h-100">
+                    <p class="text-secondary mb-1">{{ stat.label }}</p>
+                    <p class="display-6 text-dark mb-0">{{ stat.count }}</p>
+                  </div>
+                </a>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="row g-4 mb-4">
+  <div class="col-lg-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <h2 class="h4">What the database contains</h2>
+        <p class="text-secondary mb-0">
+          Study-level metadata, sample and cohort context, organism records, pairwise relative associations,
+          and controlled flexible metadata for variables that differ across papers.
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <h2 class="h4">Why it matters</h2>
+        <p class="text-secondary mb-0">
+          Microbiome interactions are easier to reason about when the underlying evidence is normalized,
+          searchable, and tied back to the study and sample context where each association was reported.
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <h2 class="h4">Current workflow</h2>
+        <p class="text-secondary mb-0">
+          Use the browser for inspection, Django admin for manual curation, and the import workflow for
+          validated batch ingestion. The graph view is available as an exploratory layer over curated associations.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

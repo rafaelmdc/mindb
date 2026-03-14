@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}{{ organism.scientific_name }}{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a class="btn btn-sm btn-outline-secondary mb-3" href="{% url 'database:organism-list' %}">Back to organisms</a>
+  <h1 class="mb-1">{{ organism.scientific_name }}</h1>
+  <p class="text-secondary mb-0">{{ organism.taxonomic_rank|title }}</p>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Taxonomy details</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-5">NCBI ID</dt>
+          <dd class="col-sm-7">{{ organism.ncbi_taxonomy_id }}</dd>
+          <dt class="col-sm-5">Genus</dt>
+          <dd class="col-sm-7">{{ organism.genus|default:"-" }}</dd>
+          <dt class="col-sm-5">Species</dt>
+          <dd class="col-sm-7">{{ organism.species|default:"-" }}</dd>
+          <dt class="col-sm-5">Parent</dt>
+          <dd class="col-sm-7">
+            {% if organism.parent_taxonomy %}
+              <a href="{% url 'database:organism-detail' organism.parent_taxonomy.pk %}">{{ organism.parent_taxonomy.scientific_name }}</a>
+            {% else %}
+              -
+            {% endif %}
+          </dd>
+          <dt class="col-sm-5">Associations</dt>
+          <dd class="col-sm-7">{{ association_count }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Child taxa</h2>
+        <ul class="list-group list-group-flush">
+          {% for child in child_organisms %}
+            <li class="list-group-item px-0">
+              <a href="{% url 'database:organism-detail' child.pk %}">{{ child.scientific_name }}</a>
+            </li>
+          {% empty %}
+            <li class="list-group-item px-0 text-secondary">No child taxa recorded.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% if organism.notes %}
+      <div class="card shadow-sm mt-4">
+        <div class="card-body">
+          <h2 class="h5">Notes</h2>
+          <p class="mb-0">{{ organism.notes }}</p>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

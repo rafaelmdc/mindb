@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load browser_tags %}
+
+{% block title %}Relative Associations{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-end mb-4">
+  <div>
+    <h1 class="mb-1">Relative Associations</h1>
+    <p class="text-secondary mb-0">Inspect pairwise organism relationships across curated samples.</p>
+  </div>
+  <span class="badge text-bg-secondary">{{ page_obj.paginator.count }} total</span>
+</div>
+
+<form method="get" class="card card-body shadow-sm mb-4">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label" for="id_q">Search</label>
+      <input class="form-control" id="id_q" type="text" name="q" value="{{ current_query }}" placeholder="Organism, study, sample, type, method">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" for="id_study">Study</label>
+      <select class="form-select" id="id_study" name="study">
+        <option value="">All studies</option>
+        {% for study in studies %}
+          <option value="{{ study.pk }}" {% if current_study == study.pk|stringformat:"s" %}selected{% endif %}>{{ study.title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="id_sign">Sign</label>
+      <select class="form-select" id="id_sign" name="sign">
+        <option value="">All signs</option>
+        {% for value, label in sign_choices %}
+          <option value="{{ value }}" {% if current_sign == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="id_association_type">Type</label>
+      <input class="form-control" id="id_association_type" type="text" name="association_type" value="{{ current_association_type }}">
+    </div>
+    <div class="col-md-1">
+      <label class="form-label" for="id_order_by">Sort</label>
+      <select class="form-select" id="id_order_by" name="order_by">
+        <option value="">Default</option>
+        {% for value, label in ordering_options %}
+          <option value="{{ value }}" {% if current_order_by == value %}selected{% endif %}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="mt-3 d-flex gap-2">
+    <button class="btn btn-primary" type="submit">Apply</button>
+    <a class="btn btn-outline-secondary" href="{% url 'database:relativeassociation-list' %}">Reset</a>
+  </div>
+</form>
+
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th><a href="{% querystring order_by='sample' page='' %}">Sample</a></th>
+          <th>Study</th>
+          <th>Organism 1</th>
+          <th>Organism 2</th>
+          <th>Type</th>
+          <th>Sign</th>
+          <th><a href="{% querystring order_by='value' page='' %}">Value</a></th>
+          <th><a href="{% querystring order_by='p_value' page='' %}">p-value</a></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for association in associations %}
+          <tr>
+            <td><a href="{% url 'database:relativeassociation-detail' association.pk %}">{{ association.sample.label }}</a></td>
+            <td><a href="{% url 'database:study-detail' association.sample.study.pk %}">{{ association.sample.study.title }}</a></td>
+            <td>{{ association.organism_1.scientific_name }}</td>
+            <td>{{ association.organism_2.scientific_name }}</td>
+            <td>{{ association.association_type }}</td>
+            <td>{{ association.get_sign_display|default:"-" }}</td>
+            <td>{{ association.value|default:"-" }}</td>
+            <td>{{ association.p_value|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-secondary py-4">No associations matched these filters.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "database/includes/pagination.html" %}
+{% endblock %}

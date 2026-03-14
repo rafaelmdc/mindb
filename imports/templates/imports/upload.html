@@ -1,0 +1,21 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div id="content-main">
+  <h1>CSV Import</h1>
+  <p>Upload a CSV file for validation and preview before writing any records.</p>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="default">Preview Import</button>
+  </form>
+
+  <h2>Supported Import Types</h2>
+  <ul>
+    {% for value, label in import_choices %}
+      <li>{{ label }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

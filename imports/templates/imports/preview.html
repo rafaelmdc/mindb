@@ -1,0 +1,143 @@
+{% extends "admin/base_site.html" %}
+{% load import_tags %}
+
+{% block content %}
+<div id="content-main">
+  <style>
+    .import-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin: 18px 0 24px;
+    }
+    .import-card {
+      border: 1px solid #d9d9d9;
+      background: #fff;
+      padding: 14px 16px;
+      border-radius: 6px;
+    }
+    .import-card strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #666;
+    }
+    .import-card span {
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .import-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      background: #fff;
+    }
+    .import-table th,
+    .import-table td {
+      border: 1px solid #d9d9d9;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .import-table th {
+      background: #f7f7f7;
+      white-space: nowrap;
+    }
+    .import-list {
+      margin: 0 0 20px;
+      padding-left: 18px;
+    }
+    .import-actions {
+      margin-top: 20px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+  </style>
+
+  <h1>{{ import_label }} Import Preview</h1>
+  <p>Review the parsed rows before writing anything to the database.</p>
+
+  <div class="import-summary">
+    <div class="import-card">
+      <strong>Batch</strong>
+      <span>{{ preview.batch_name }}</span>
+    </div>
+    <div class="import-card">
+      <strong>File</strong>
+      <span style="font-size: 16px;">{{ preview.file_name }}</span>
+    </div>
+    <div class="import-card">
+      <strong>Total Rows</strong>
+      <span>{{ preview.total_rows }}</span>
+    </div>
+    <div class="import-card">
+      <strong>Valid Rows</strong>
+      <span>{{ preview.valid_rows|length }}</span>
+    </div>
+    <div class="import-card">
+      <strong>Duplicates</strong>
+      <span>{{ preview.duplicates|length }}</span>
+    </div>
+    <div class="import-card">
+      <strong>Errors</strong>
+      <span>{{ preview.errors|length }}</span>
+    </div>
+  </div>
+
+  <p><strong>Required columns:</strong> {{ preview.required_columns|join:", " }}</p>
+
+  {% if preview.errors %}
+    <h2>Validation Errors</h2>
+    <ul class="import-list">
+      {% for error in preview.errors %}
+        <li>Row {{ error.row_number|default:"-" }}: {{ error.message }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if preview.duplicates %}
+    <h2>Duplicates</h2>
+    <ul class="import-list">
+      {% for duplicate in preview.duplicates %}
+        <li>Row {{ duplicate.row_number }}: {{ duplicate.message }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if preview.valid_rows %}
+    <h2>Rows To Import</h2>
+    <table class="import-table">
+      <thead>
+        <tr>
+          {% for key, label in preview_columns %}
+            <th>{{ label }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in preview.valid_rows %}
+          <tr>
+            {% for key, label in preview_columns %}
+              <td>{{ row|get_item:key|default:"" }}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="import-actions">
+      <form method="post" action="{% url 'imports:confirm' %}">
+        {% csrf_token %}
+        <button type="submit" class="default">Confirm Import</button>
+      </form>
+      <a href="{% url 'imports:upload' %}">Back to upload</a>
+    </div>
+  {% else %}
+    <p>No valid rows are available to import.</p>
+    <p><a href="{% url 'imports:upload' %}">Back to upload</a></p>
+  {% endif %}
+</div>
+{% endblock %}

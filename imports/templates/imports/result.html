@@ -1,0 +1,67 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div id="content-main">
+  <style>
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin: 18px 0 24px;
+    }
+    .result-card {
+      border: 1px solid #d9d9d9;
+      background: #fff;
+      padding: 14px 16px;
+      border-radius: 6px;
+    }
+    .result-card strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #666;
+    }
+    .result-card span {
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .result-note {
+      border-left: 4px solid #417690;
+      background: #fff;
+      padding: 12px 14px;
+      margin: 16px 0 20px;
+    }
+  </style>
+
+  <h1>{{ import_label }} Import Result</h1>
+  <p>The import has been recorded in <code>ImportBatch</code>.</p>
+
+  <div class="result-grid">
+    <div class="result-card">
+      <strong>Batch</strong>
+      <span style="font-size: 16px;">{{ batch.name }}</span>
+    </div>
+    <div class="result-card">
+      <strong>Status</strong>
+      <span>{{ batch.get_status_display }}</span>
+    </div>
+    <div class="result-card">
+      <strong>Created Records</strong>
+      <span>{{ batch.success_count }}</span>
+    </div>
+    <div class="result-card">
+      <strong>Issues Reported</strong>
+      <span>{{ batch.error_count }}</span>
+    </div>
+  </div>
+
+  <div class="result-note">
+    <strong>Summary:</strong> {{ batch.notes }}
+  </div>
+
+  <p><a href="{% url 'admin:database_importbatch_change' batch.pk %}">Open ImportBatch record</a></p>
+  <p><a href="{% url 'imports:upload' %}">Start another import</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}{{ study.title }}{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a class="btn btn-sm btn-outline-secondary mb-3" href="{% url 'database:study-list' %}">Back to studies</a>
+  <h1 class="mb-1">{{ study.title }}</h1>
+  <p class="text-secondary mb-0">
+    {{ study.journal|default:"Journal not recorded" }}
+    {% if study.publication_year %} · {{ study.publication_year }}{% endif %}
+  </p>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Study details</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">DOI</dt>
+          <dd class="col-sm-8">{{ study.source_doi|default:"-" }}</dd>
+          <dt class="col-sm-4">Country</dt>
+          <dd class="col-sm-8">{{ study.country|default:"-" }}</dd>
+          <dt class="col-sm-4">Samples</dt>
+          <dd class="col-sm-8">{{ study.samples.count }}</dd>
+        </dl>
+      </div>
+    </div>
+    {% if study.notes %}
+      <div class="card shadow-sm mt-4">
+        <div class="card-body">
+          <h2 class="h5">Notes</h2>
+          <p class="mb-0">{{ study.notes }}</p>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Samples</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Site</th>
+                <th>Method</th>
+                <th>Cohort</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for sample in study.samples.all %}
+                <tr>
+                  <td><a href="{% url 'database:sample-detail' sample.pk %}">{{ sample.label }}</a></td>
+                  <td>{{ sample.site|default:"-" }}</td>
+                  <td>{{ sample.method|default:"-" }}</td>
+                  <td>{{ sample.cohort|default:"-" }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="4" class="text-center text-secondary py-3">No samples recorded for this study.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
