@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}{{ group.name }}{% endblock %}
+{% block body_class %}detail-page{% endblock %}
+
+{% block content %}
+<div class="page-intro detail-hero mb-4">
+  <a class="back-link mb-3" href="{% url 'database:group-list' %}">Back to groups</a>
+  <h1 class="mb-1">{{ group.name }}</h1>
+  <p class="text-secondary mb-0">
+    <a href="{% url 'database:study-detail' group.study.pk %}">{{ group.study.title }}</a>
+  </p>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card shadow-sm detail-card">
+      <div class="card-body">
+        <h2 class="h5">Group details</h2>
+        <dl class="row mb-0 detail-grid">
+          <dt class="col-sm-5">Condition</dt>
+          <dd class="col-sm-7">{{ group.condition|default:"-" }}</dd>
+          <dt class="col-sm-5">Cohort</dt>
+          <dd class="col-sm-7">{{ group.cohort|default:"-" }}</dd>
+          <dt class="col-sm-5">Site</dt>
+          <dd class="col-sm-7">{{ group.site|default:"-" }}</dd>
+          <dt class="col-sm-5">Sample Size</dt>
+          <dd class="col-sm-7">{{ group.sample_size|default:"-" }}</dd>
+        </dl>
+      </div>
+    </div>
+    {% if group.notes %}
+      <div class="card shadow-sm detail-card mt-4">
+        <div class="card-body">
+          <h2 class="h5">Notes</h2>
+          <p class="mb-0">{{ group.notes }}</p>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+  <div class="col-lg-8">
+    <div class="card shadow-sm data-shell mb-4">
+      <div class="card-body">
+        <h2 class="h5">Quantitative findings</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Organism</th>
+                <th>Value Type</th>
+                <th>Value</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for finding in group.quantitative_findings.all %}
+                <tr>
+                  <td>{{ finding.organism.scientific_name }}</td>
+                  <td><a href="{% url 'database:quantitativefinding-detail' finding.pk %}">{{ finding.get_value_type_display }}</a></td>
+                  <td>{{ finding.value }}</td>
+                  <td>{{ finding.source }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="4" class="text-center text-secondary py-3">No quantitative findings recorded for this group.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm data-shell mb-4">
+      <div class="card-body">
+        <h2 class="h5">Metadata values</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Variable</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for value in group.metadata_values.all %}
+                <tr>
+                  <td>{{ value.variable }}</td>
+                  <td>{{ value.typed_value }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="2" class="text-center text-secondary py-3">No metadata values recorded for this group.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm data-shell">
+      <div class="card-body">
+        <h2 class="h5">Related comparisons</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Group A</th>
+                <th>Group B</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for comparison in comparisons %}
+                <tr>
+                  <td><a href="{% url 'database:comparison-detail' comparison.pk %}">{{ comparison.label }}</a></td>
+                  <td>{{ comparison.group_a.name }}</td>
+                  <td>{{ comparison.group_b.name }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="3" class="text-center text-secondary py-3">No comparisons recorded for this group.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

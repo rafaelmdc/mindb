@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}{{ finding.organism.scientific_name }}{% endblock %}
+{% block body_class %}detail-page{% endblock %}
+
+{% block content %}
+<div class="page-intro detail-hero mb-4">
+  <a class="back-link mb-3" href="{% url 'database:quantitativefinding-list' %}">Back to quantitative findings</a>
+  <h1 class="mb-1">{{ finding.organism.scientific_name }}</h1>
+  <p class="text-secondary mb-0">{{ finding.get_value_type_display }} in {{ finding.group.name }}</p>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card shadow-sm detail-card">
+      <div class="card-body">
+        <h2 class="h5">Finding details</h2>
+        <dl class="row mb-0 detail-grid">
+          <dt class="col-sm-5">Study</dt>
+          <dd class="col-sm-7"><a href="{% url 'database:study-detail' finding.group.study.pk %}">{{ finding.group.study.title }}</a></dd>
+          <dt class="col-sm-5">Group</dt>
+          <dd class="col-sm-7"><a href="{% url 'database:group-detail' finding.group.pk %}">{{ finding.group.name }}</a></dd>
+          <dt class="col-sm-5">Value Type</dt>
+          <dd class="col-sm-7">{{ finding.get_value_type_display }}</dd>
+          <dt class="col-sm-5">Value</dt>
+          <dd class="col-sm-7">{{ finding.value }}</dd>
+          <dt class="col-sm-5">Unit</dt>
+          <dd class="col-sm-7">{{ finding.unit|default:"-" }}</dd>
+          <dt class="col-sm-5">Source</dt>
+          <dd class="col-sm-7">{{ finding.source }}</dd>
+          <dt class="col-sm-5">Import Batch</dt>
+          <dd class="col-sm-7">
+            {% if finding.import_batch %}
+              <a href="{% url 'admin:database_importbatch_change' finding.import_batch.pk %}">{{ finding.import_batch.name }}</a>
+            {% else %}
+              -
+            {% endif %}
+          </dd>
+        </dl>
+      </div>
+    </div>
+    {% if finding.notes %}
+      <div class="card shadow-sm detail-card mt-4">
+        <div class="card-body">
+          <h2 class="h5">Notes</h2>
+          <p class="mb-0">{{ finding.notes }}</p>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+  <div class="col-lg-8">
+    <div class="card shadow-sm detail-card">
+      <div class="card-body">
+        <h2 class="h5">Organism</h2>
+        <p class="mb-1"><a href="{% url 'database:organism-detail' finding.organism.pk %}">{{ finding.organism.scientific_name }}</a></p>
+        <p class="mb-0 text-secondary">
+          Rank: {{ finding.organism.rank }}{% if finding.organism.ncbi_taxonomy_id %} · NCBI ID {{ finding.organism.ncbi_taxonomy_id }}{% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

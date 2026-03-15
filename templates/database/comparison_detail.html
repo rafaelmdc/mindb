@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}{{ comparison.label }}{% endblock %}
+{% block body_class %}detail-page{% endblock %}
+
+{% block content %}
+<div class="page-intro detail-hero mb-4">
+  <a class="back-link mb-3" href="{% url 'database:comparison-list' %}">Back to comparisons</a>
+  <h1 class="mb-1">{{ comparison.label }}</h1>
+  <p class="text-secondary mb-0">
+    <a href="{% url 'database:study-detail' comparison.study.pk %}">{{ comparison.study.title }}</a>
+  </p>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card shadow-sm detail-card">
+      <div class="card-body">
+        <h2 class="h5">Comparison details</h2>
+        <dl class="row mb-0 detail-grid">
+          <dt class="col-sm-4">Group A</dt>
+          <dd class="col-sm-8"><a href="{% url 'database:group-detail' comparison.group_a.pk %}">{{ comparison.group_a.name }}</a></dd>
+          <dt class="col-sm-4">Group B</dt>
+          <dd class="col-sm-8"><a href="{% url 'database:group-detail' comparison.group_b.pk %}">{{ comparison.group_b.name }}</a></dd>
+        </dl>
+      </div>
+    </div>
+    {% if comparison.notes %}
+      <div class="card shadow-sm detail-card mt-4">
+        <div class="card-body">
+          <h2 class="h5">Notes</h2>
+          <p class="mb-0">{{ comparison.notes }}</p>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+  <div class="col-lg-8">
+    <div class="card shadow-sm data-shell mb-4">
+      <div class="card-body">
+        <h2 class="h5">Qualitative findings</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Organism</th>
+                <th>Direction</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for finding in comparison.qualitative_findings.all %}
+                <tr>
+                  <td>{{ finding.organism.scientific_name }}</td>
+                  <td><a href="{% url 'database:qualitativefinding-detail' finding.pk %}">{{ finding.get_direction_display }}</a></td>
+                  <td>{{ finding.source }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="3" class="text-center text-secondary py-3">No qualitative findings recorded for this comparison.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm data-shell">
+      <div class="card-body">
+        <h2 class="h5">Beta metrics</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Value</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for metric in comparison.beta_metrics.all %}
+                <tr>
+                  <td>{{ metric.metric }}</td>
+                  <td>{{ metric.value }}</td>
+                  <td>{{ metric.source }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="3" class="text-center text-secondary py-3">No beta metrics recorded for this comparison.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

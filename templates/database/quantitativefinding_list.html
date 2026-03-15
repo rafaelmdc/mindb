@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% load browser_tags %}
+
+{% block title %}Quantitative Findings{% endblock %}
+{% block body_class %}list-page{% endblock %}
+
+{% block content %}
+<div class="page-intro d-flex justify-content-between align-items-end mb-4">
+  <div>
+    <h1 class="mb-1">Quantitative Findings</h1>
+    <p class="text-secondary mb-0">Inspect per-group numeric taxon values.</p>
+  </div>
+  <span class="badge text-bg-secondary">{{ page_obj.paginator.count }} total</span>
+</div>
+
+<form method="get" class="card card-body shadow-sm filter-card mb-4">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label" for="id_q">Search</label>
+      <input class="form-control" id="id_q" type="text" name="q" value="{{ current_query }}" placeholder="Group, study, organism, source">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" for="id_study">Study</label>
+      <select class="form-select" id="id_study" name="study">
+        <option value="">All studies</option>
+        {% for study in studies %}
+          <option value="{{ study.pk }}" {% if current_study == study.pk|stringformat:"s" %}selected{% endif %}>{{ study.title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" for="id_value_type">Value Type</label>
+      <select class="form-select" id="id_value_type" name="value_type">
+        <option value="">All types</option>
+        {% for value, label in value_type_choices %}
+          <option value="{{ value }}" {% if current_value_type == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="id_order_by">Sort</label>
+      <select class="form-select" id="id_order_by" name="order_by">
+        <option value="">Default</option>
+        {% for value, label in ordering_options %}
+          <option value="{{ value }}" {% if current_order_by == value %}selected{% endif %}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="mt-3 d-flex gap-2">
+    <button class="btn btn-primary" type="submit">Apply</button>
+    <a class="btn btn-outline-secondary" href="{% url 'database:quantitativefinding-list' %}">Reset</a>
+  </div>
+</form>
+
+<div class="card shadow-sm data-shell">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th><a href="{% querystring order_by='group' page='' %}">Group</a></th>
+          <th>Study</th>
+          <th><a href="{% querystring order_by='organism' page='' %}">Organism</a></th>
+          <th>Value Type</th>
+          <th><a href="{% querystring order_by='value' page='' %}">Value</a></th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for finding in findings %}
+          <tr>
+            <td><a href="{% url 'database:quantitativefinding-detail' finding.pk %}">{{ finding.group.name }}</a></td>
+            <td><a href="{% url 'database:study-detail' finding.group.study.pk %}">{{ finding.group.study.title }}</a></td>
+            <td>{{ finding.organism.scientific_name }}</td>
+            <td>{{ finding.get_value_type_display }}</td>
+            <td>{{ finding.value }}</td>
+            <td>{{ finding.source }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-secondary py-4">No quantitative findings matched these filters.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "database/includes/pagination.html" %}
+{% endblock %}
