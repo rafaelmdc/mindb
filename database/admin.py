@@ -3,13 +3,14 @@ from django.contrib import admin
 from .models import (
     AlphaMetric,
     BetaMetric,
-    CoreMetadata,
+    Comparison,
+    Group,
     ImportBatch,
     MetadataValue,
     MetadataVariable,
     Organism,
-    RelativeAssociation,
-    Sample,
+    QualitativeFinding,
+    QuantitativeFinding,
     Study,
 )
 
@@ -18,156 +19,163 @@ admin.site.site_title = 'Innov Health Microbiome Admin'
 admin.site.index_title = 'Curation Workspace'
 
 
-class CoreMetadataInline(admin.StackedInline):
-    model = CoreMetadata
+class GroupInline(admin.TabularInline):
+    model = Group
     extra = 0
+    fields = ('name', 'condition', 'cohort', 'site', 'sample_size')
+    show_change_link = True
 
 
-class SampleInline(admin.TabularInline):
-    model = Sample
+class ComparisonInline(admin.TabularInline):
+    model = Comparison
     extra = 0
-    fields = ('label', 'cohort', 'site', 'method', 'sample_size')
+    autocomplete_fields = ('group_a', 'group_b')
+    fields = ('label', 'group_a', 'group_b')
     show_change_link = True
 
 
 class MetadataValueInline(admin.TabularInline):
     model = MetadataValue
     extra = 0
-    autocomplete_fields = ('variable', 'import_batch')
-    fields = ('variable', 'value_float', 'value_int', 'value_text', 'value_bool', 'unit', 'import_batch')
+    autocomplete_fields = ('variable',)
+    fields = ('variable', 'value_float', 'value_int', 'value_text', 'value_bool')
+
+
+class QuantitativeFindingInline(admin.TabularInline):
+    model = QuantitativeFinding
+    extra = 0
+    autocomplete_fields = ('organism', 'import_batch')
+    fields = ('organism', 'value_type', 'value', 'unit', 'source', 'import_batch')
 
 
 class AlphaMetricInline(admin.TabularInline):
     model = AlphaMetric
     extra = 0
     autocomplete_fields = ('import_batch',)
-    fields = ('metric_type', 'value', 'unit', 'import_batch')
+    fields = ('metric', 'value', 'source', 'import_batch')
 
 
-class RelativeAssociationInline(admin.TabularInline):
-    model = RelativeAssociation
+class QualitativeFindingInline(admin.TabularInline):
+    model = QualitativeFinding
     extra = 0
-    autocomplete_fields = ('organism_1', 'organism_2', 'import_batch')
-    fields = (
-        'organism_1',
-        'organism_2',
-        'association_type',
-        'sign',
-        'value',
-        'method',
-        'import_batch',
-    )
+    autocomplete_fields = ('organism', 'import_batch')
+    fields = ('organism', 'direction', 'source', 'import_batch')
+
+
+class BetaMetricInline(admin.TabularInline):
+    model = BetaMetric
+    extra = 0
+    autocomplete_fields = ('import_batch',)
+    fields = ('metric', 'value', 'source', 'import_batch')
 
 
 @admin.register(Study)
 class StudyAdmin(admin.ModelAdmin):
-    list_display = ('title', 'publication_year', 'journal', 'country', 'source_doi')
-    list_filter = ('publication_year', 'country', 'journal')
-    search_fields = ('title', 'source_doi', 'journal', 'country')
-    inlines = (SampleInline,)
+    list_display = ('title', 'year', 'journal', 'country', 'doi')
+    list_filter = ('year', 'country', 'journal')
+    search_fields = ('title', 'doi', 'journal', 'country')
+    inlines = (GroupInline, ComparisonInline)
 
 
-@admin.register(Sample)
-class SampleAdmin(admin.ModelAdmin):
-    list_display = ('label', 'study', 'cohort', 'site', 'method', 'sample_size')
-    list_filter = ('study', 'site', 'method', 'cohort')
-    search_fields = ('label', 'study__title', 'cohort', 'site', 'method')
+@admin.register(Group)
+class GroupAdmin(admin.ModelAdmin):
+    list_display = ('name', 'study', 'condition', 'cohort', 'site', 'sample_size')
+    list_filter = ('study', 'condition', 'site', 'cohort')
+    search_fields = ('name', 'study__title', 'condition', 'cohort', 'site')
     autocomplete_fields = ('study',)
     list_select_related = ('study',)
-    inlines = (CoreMetadataInline, MetadataValueInline, AlphaMetricInline, RelativeAssociationInline)
+    inlines = (MetadataValueInline, QuantitativeFindingInline, AlphaMetricInline)
+
+
+@admin.register(Comparison)
+class ComparisonAdmin(admin.ModelAdmin):
+    list_display = ('label', 'study', 'group_a', 'group_b')
+    list_filter = ('study',)
+    search_fields = ('label', 'study__title', 'group_a__name', 'group_b__name')
+    autocomplete_fields = ('study', 'group_a', 'group_b')
+    list_select_related = ('study', 'group_a', 'group_b')
+    inlines = (QualitativeFindingInline, BetaMetricInline)
 
 
 @admin.register(Organism)
 class OrganismAdmin(admin.ModelAdmin):
-    list_display = ('scientific_name', 'ncbi_taxonomy_id', 'taxonomic_rank', 'genus', 'species')
-    list_filter = ('taxonomic_rank', 'genus')
-    search_fields = ('scientific_name', 'ncbi_taxonomy_id', 'genus', 'species')
-    autocomplete_fields = ('parent_taxonomy',)
+    list_display = ('scientific_name', 'ncbi_taxonomy_id', 'rank')
+    list_filter = ('rank',)
+    search_fields = ('scientific_name', 'ncbi_taxonomy_id', 'rank')
 
 
-@admin.register(RelativeAssociation)
-class RelativeAssociationAdmin(admin.ModelAdmin):
-    list_display = (
-        'sample',
-        'organism_1',
-        'organism_2',
-        'association_type',
-        'sign',
-        'value',
-        'method',
-        'import_batch',
-    )
-    list_filter = ('association_type', 'sign', 'method', 'sample__study', 'import_batch')
+@admin.register(QualitativeFinding)
+class QualitativeFindingAdmin(admin.ModelAdmin):
+    list_display = ('organism', 'comparison', 'direction', 'source', 'import_batch')
+    list_filter = ('direction', 'comparison__study', 'import_batch')
     search_fields = (
-        'sample__label',
-        'sample__study__title',
-        'organism_1__scientific_name',
-        'organism_2__scientific_name',
-        'association_type',
-        'method',
+        'organism__scientific_name',
+        'comparison__label',
+        'comparison__study__title',
+        'source',
+        'notes',
     )
-    list_select_related = ('sample__study', 'organism_1', 'organism_2', 'import_batch')
-    autocomplete_fields = ('sample', 'organism_1', 'organism_2', 'import_batch')
+    list_select_related = ('organism', 'comparison__study', 'comparison__group_a', 'comparison__group_b', 'import_batch')
+    autocomplete_fields = ('comparison', 'organism', 'import_batch')
+
+
+@admin.register(QuantitativeFinding)
+class QuantitativeFindingAdmin(admin.ModelAdmin):
+    list_display = ('organism', 'group', 'value_type', 'value', 'source', 'import_batch')
+    list_filter = ('value_type', 'group__study', 'import_batch')
+    search_fields = (
+        'organism__scientific_name',
+        'group__name',
+        'group__study__title',
+        'source',
+        'notes',
+    )
+    list_select_related = ('organism', 'group__study', 'import_batch')
+    autocomplete_fields = ('group', 'organism', 'import_batch')
 
 
 @admin.register(AlphaMetric)
 class AlphaMetricAdmin(admin.ModelAdmin):
-    list_display = ('sample', 'metric_type', 'value', 'unit', 'import_batch')
-    list_filter = ('metric_type', 'sample__study', 'import_batch')
-    search_fields = ('sample__label', 'sample__study__title', 'metric_type', 'notes')
-    list_select_related = ('sample__study', 'import_batch')
-    autocomplete_fields = ('sample', 'import_batch')
+    list_display = ('group', 'metric', 'value', 'source', 'import_batch')
+    list_filter = ('metric', 'group__study', 'import_batch')
+    search_fields = ('group__name', 'group__study__title', 'metric', 'source', 'notes')
+    list_select_related = ('group__study', 'import_batch')
+    autocomplete_fields = ('group', 'import_batch')
 
 
 @admin.register(BetaMetric)
 class BetaMetricAdmin(admin.ModelAdmin):
-    list_display = ('sample_a', 'sample_b', 'metric_type', 'value', 'unit', 'import_batch')
-    list_filter = ('metric_type', 'sample_a__study', 'import_batch')
-    search_fields = (
-        'sample_a__label',
-        'sample_a__study__title',
-        'sample_b__label',
-        'sample_b__study__title',
-        'metric_type',
-        'notes',
-    )
-    list_select_related = ('sample_a__study', 'sample_b__study', 'import_batch')
-    autocomplete_fields = ('sample_a', 'sample_b', 'import_batch')
+    list_display = ('comparison', 'metric', 'value', 'source', 'import_batch')
+    list_filter = ('metric', 'comparison__study', 'import_batch')
+    search_fields = ('comparison__label', 'comparison__study__title', 'metric', 'source', 'notes')
+    list_select_related = ('comparison__study', 'import_batch')
+    autocomplete_fields = ('comparison', 'import_batch')
 
 
 @admin.register(MetadataVariable)
 class MetadataVariableAdmin(admin.ModelAdmin):
-    list_display = ('display_name', 'name', 'domain', 'value_type', 'is_filterable')
-    list_filter = ('domain', 'value_type', 'is_filterable')
-    search_fields = ('display_name', 'name', 'domain', 'description')
+    list_display = ('name', 'display_name', 'value_type', 'is_filterable')
+    list_filter = ('value_type', 'is_filterable')
+    search_fields = ('name', 'display_name')
 
 
 @admin.register(MetadataValue)
 class MetadataValueAdmin(admin.ModelAdmin):
-    list_display = ('sample', 'variable', 'unit', 'raw_value', 'import_batch')
-    list_filter = ('variable__domain', 'variable__value_type', 'import_batch')
+    list_display = ('group', 'variable', 'typed_value', 'created_at')
+    list_filter = ('variable__value_type', 'group__study')
     search_fields = (
-        'sample__label',
-        'sample__study__title',
-        'variable__display_name',
+        'group__name',
+        'group__study__title',
         'variable__name',
-        'raw_value',
+        'variable__display_name',
     )
-    list_select_related = ('sample__study', 'variable', 'import_batch')
-    autocomplete_fields = ('sample', 'variable', 'import_batch')
+    list_select_related = ('group__study', 'variable')
+    autocomplete_fields = ('group', 'variable')
 
 
 @admin.register(ImportBatch)
 class ImportBatchAdmin(admin.ModelAdmin):
-    list_display = ('name', 'import_type', 'status', 'uploaded_at', 'success_count', 'error_count')
-    list_filter = ('status', 'import_type', 'uploaded_at')
+    list_display = ('name', 'import_type', 'status', 'created_at', 'success_count', 'error_count')
+    list_filter = ('status', 'import_type', 'created_at')
     search_fields = ('name', 'source_file', 'notes')
     change_list_template = 'admin/database/importbatch/change_list.html'
-
-
-@admin.register(CoreMetadata)
-class CoreMetadataAdmin(admin.ModelAdmin):
-    list_display = ('sample', 'condition', 'male_percent', 'age_mean', 'bmi_mean')
-    list_filter = ('condition',)
-    search_fields = ('sample__label', 'sample__study__title', 'condition', 'notes')
-    autocomplete_fields = ('sample',)

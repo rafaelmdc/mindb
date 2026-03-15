@@ -9,7 +9,7 @@
   <h1 class="mb-1">{{ study.title }}</h1>
   <p class="text-secondary mb-0">
     {{ study.journal|default:"Journal not recorded" }}
-    {% if study.publication_year %} · {{ study.publication_year }}{% endif %}
+    {% if study.year %} · {{ study.year }}{% endif %}
   </p>
 </div>
 
@@ -20,11 +20,17 @@
         <h2 class="h5">Study details</h2>
         <dl class="row mb-0 detail-grid">
           <dt class="col-sm-4">DOI</dt>
-          <dd class="col-sm-8">{{ study.source_doi|default:"-" }}</dd>
+          <dd class="col-sm-8">{{ study.doi|default:"-" }}</dd>
           <dt class="col-sm-4">Country</dt>
           <dd class="col-sm-8">{{ study.country|default:"-" }}</dd>
-          <dt class="col-sm-4">Samples</dt>
-          <dd class="col-sm-8">{{ study.samples.count }}</dd>
+          <dt class="col-sm-4">Groups</dt>
+          <dd class="col-sm-8">{{ study.groups.count }}</dd>
+          <dt class="col-sm-4">Comparisons</dt>
+          <dd class="col-sm-8">{{ study.comparisons.count }}</dd>
+          <dt class="col-sm-4">Qualitative</dt>
+          <dd class="col-sm-8">{{ qualitative_count }}</dd>
+          <dt class="col-sm-4">Quantitative</dt>
+          <dd class="col-sm-8">{{ quantitative_count }}</dd>
         </dl>
       </div>
     </div>
@@ -38,30 +44,62 @@
     {% endif %}
   </div>
   <div class="col-lg-8">
+    <div class="card shadow-sm data-shell mb-4">
+      <div class="card-body">
+        <h2 class="h5">Groups</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Condition</th>
+                <th>Cohort</th>
+                <th>Site</th>
+                <th>Sample Size</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for group in study.groups.all %}
+                <tr>
+                  <td><a href="{% url 'database:group-detail' group.pk %}">{{ group.name }}</a></td>
+                  <td>{{ group.condition|default:"-" }}</td>
+                  <td>{{ group.cohort|default:"-" }}</td>
+                  <td>{{ group.site|default:"-" }}</td>
+                  <td>{{ group.sample_size|default:"-" }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="5" class="text-center text-secondary py-3">No groups recorded for this study.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div class="card shadow-sm data-shell">
       <div class="card-body">
-        <h2 class="h5">Samples</h2>
+        <h2 class="h5">Comparisons</h2>
         <div class="table-responsive">
           <table class="table table-sm mb-0">
             <thead>
               <tr>
                 <th>Label</th>
-                <th>Site</th>
-                <th>Method</th>
-                <th>Cohort</th>
+                <th>Group A</th>
+                <th>Group B</th>
               </tr>
             </thead>
             <tbody>
-              {% for sample in study.samples.all %}
+              {% for comparison in study.comparisons.all %}
                 <tr>
-                  <td><a href="{% url 'database:sample-detail' sample.pk %}">{{ sample.label }}</a></td>
-                  <td>{{ sample.site|default:"-" }}</td>
-                  <td>{{ sample.method|default:"-" }}</td>
-                  <td>{{ sample.cohort|default:"-" }}</td>
+                  <td><a href="{% url 'database:comparison-detail' comparison.pk %}">{{ comparison.label }}</a></td>
+                  <td>{{ comparison.group_a.name }}</td>
+                  <td>{{ comparison.group_b.name }}</td>
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="4" class="text-center text-secondary py-3">No samples recorded for this study.</td>
+                  <td colspan="3" class="text-center text-secondary py-3">No comparisons recorded for this study.</td>
                 </tr>
               {% endfor %}
             </tbody>

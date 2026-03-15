@@ -1,103 +1,128 @@
-def build_association_graph(associations):
-    import networkx as nx
+def build_comparison_graph(findings):
+    comparison_nodes = {}
+    organism_nodes = {}
+    edge_map = {}
 
-    graph = nx.Graph()
+    for finding in findings:
+        comparison = finding.comparison
+        organism = finding.organism
+        comparison_node_id = f'comparison-{comparison.pk}'
+        organism_node_id = f'organism-{organism.pk}'
 
-    for association in associations:
-        study = association.sample.study
-        organisms = (association.organism_1, association.organism_2)
+        comparison_node = comparison_nodes.setdefault(
+            comparison_node_id,
+            {
+                'id': comparison_node_id,
+                'label': comparison.label,
+                'node_type': 'comparison',
+                'study_title': comparison.study.title,
+                'group_a': comparison.group_a.name,
+                'group_b': comparison.group_b.name,
+                'study_ids': {comparison.study_id},
+                'neighbors': set(),
+            },
+        )
+        comparison_node['study_ids'].add(comparison.study_id)
+        comparison_node['neighbors'].add(organism_node_id)
 
-        for organism in organisms:
-            if not graph.has_node(organism.pk):
-                graph.add_node(
-                    organism.pk,
-                    id=str(organism.pk),
-                    label=organism.scientific_name,
-                    taxonomy_id=organism.ncbi_taxonomy_id,
-                    rank=organism.taxonomic_rank,
-                    genus=organism.genus,
-                    species=organism.species,
-                    study_ids=set(),
-                    sample_ids=set(),
-                )
+        organism_node = organism_nodes.setdefault(
+            organism_node_id,
+            {
+                'id': organism_node_id,
+                'label': organism.scientific_name,
+                'node_type': 'organism',
+                'rank': organism.rank,
+                'taxonomy_id': organism.ncbi_taxonomy_id,
+                'study_ids': set(),
+                'neighbors': set(),
+            },
+        )
+        organism_node['study_ids'].add(comparison.study_id)
+        organism_node['neighbors'].add(comparison_node_id)
 
-            graph.nodes[organism.pk]['study_ids'].add(study.pk)
-            graph.nodes[organism.pk]['sample_ids'].add(association.sample.pk)
-
-        source_id = association.organism_1.pk
-        target_id = association.organism_2.pk
-
-        if not graph.has_edge(source_id, target_id):
-            graph.add_edge(
-                source_id,
-                target_id,
-                association_count=0,
-                study_ids=set(),
-                sample_ids=set(),
-                signs=set(),
-                association_types=set(),
-                values=[],
-            )
-
-        edge = graph.edges[source_id, target_id]
-        edge['association_count'] += 1
-        edge['study_ids'].add(study.pk)
-        edge['sample_ids'].add(association.sample.pk)
-        if association.sign:
-            edge['signs'].add(association.sign)
-        if association.association_type:
-            edge['association_types'].add(association.association_type)
-        if association.value is not None:
-            edge['values'].append(association.value)
+        edge_key = (comparison_node_id, organism_node_id)
+        edge = edge_map.setdefault(
+            edge_key,
+            {
+                'source': comparison_node_id,
+                'target': organism_node_id,
+                'finding_count': 0,
+                'study_ids': set(),
+                'directions': {},
+                'sources': set(),
+            },
+        )
+        edge['finding_count'] += 1
+        edge['study_ids'].add(comparison.study_id)
+        edge['directions'][finding.direction] = edge['directions'].get(finding.direction, 0) + 1
+        edge['sources'].add(finding.source)
 
     nodes = []
-    for node_id, attrs in graph.nodes(data=True):
+    for attrs in comparison_nodes.values():
         nodes.append(
             {
                 'data': {
                     'id': attrs['id'],
                     'label': attrs['label'],
-                    'taxonomy_id': attrs['taxonomy_id'],
-                    'rank': attrs['rank'],
-                    'genus': attrs['genus'],
-                    'species': attrs['species'],
-                    'degree': graph.degree[node_id],
-                    'group': attrs['rank'] or 'unknown',
+                    'node_type': attrs['node_type'],
+                    'degree': len(attrs['neighbors']),
                     'study_count': len(attrs['study_ids']),
-                    'sample_count': len(attrs['sample_ids']),
+                    'group': attrs['node_type'],
+                    'study_title': attrs['study_title'],
+                    'group_a': attrs['group_a'],
+                    'group_b': attrs['group_b'],
+                }
+            }
+        )
+    for attrs in organism_nodes.values():
+        nodes.append(
+            {
+                'data': {
+                    'id': attrs['id'],
+                    'label': attrs['label'],
+                    'node_type': attrs['node_type'],
+                    'degree': len(attrs['neighbors']),
+                    'study_count': len(attrs['study_ids']),
+                    'group': attrs['node_type'],
+                    'rank': attrs['rank'],
+                    'taxonomy_id': attrs['taxonomy_id'],
                 }
             }
         )
 
     edges = []
-    for source_id, target_id, attrs in graph.edges(data=True):
-        average_value = None
-        if attrs['values']:
-            average_value = sum(attrs['values']) / len(attrs['values'])
-
-        signs = sorted(attrs['signs'])
-        association_types = sorted(attrs['association_types'])
+    for edge in edge_map.values():
+        directions = edge['directions']
+        dominant_direction = sorted(
+            directions.items(),
+            key=lambda item: (-item[1], item[0]),
+        )[0][0]
         edges.append(
             {
                 'data': {
-                    'id': f'{source_id}-{target_id}',
-                    'source': str(source_id),
-                    'target': str(target_id),
-                    'source_label': graph.nodes[source_id]['label'],
-                    'target_label': graph.nodes[target_id]['label'],
-                    'association_count': attrs['association_count'],
-                    'study_count': len(attrs['study_ids']),
-                    'sample_count': len(attrs['sample_ids']),
-                    'sign': ', '.join(signs) if signs else '',
-                    'association_type': ', '.join(association_types),
-                    'average_value': average_value,
-                    'label': association_types[0] if association_types else 'association',
+                    'id': f"{edge['source']}-{edge['target']}",
+                    'source': edge['source'],
+                    'target': edge['target'],
+                    'source_label': comparison_nodes[edge['source']]['label'],
+                    'target_label': organism_nodes[edge['target']]['label'],
+                    'finding_count': edge['finding_count'],
+                    'study_count': len(edge['study_ids']),
+                    'direction_summary': ', '.join(
+                        f'{direction}: {count}'
+                        for direction, count in sorted(directions.items())
+                    ),
+                    'dominant_direction': dominant_direction,
+                    'source_count': len(edge['sources']),
+                    'label': dominant_direction,
                 }
             }
         )
 
-    nodes.sort(key=lambda item: item['data']['label'])
+    nodes.sort(key=lambda item: (item['data']['node_type'], item['data']['label']))
     edges.sort(key=lambda item: (item['data']['source'], item['data']['target']))
+
+    comparison_count = sum(1 for node in nodes if node['data']['node_type'] == 'comparison')
+    organism_count = sum(1 for node in nodes if node['data']['node_type'] == 'organism')
 
     return {
         'nodes': nodes,
@@ -105,6 +130,8 @@ def build_association_graph(associations):
         'summary': {
             'node_count': len(nodes),
             'edge_count': len(edges),
-            'association_count': sum(edge['data']['association_count'] for edge in edges),
+            'finding_count': sum(edge['data']['finding_count'] for edge in edges),
+            'comparison_count': comparison_count,
+            'organism_count': organism_count,
         },
     }

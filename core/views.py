@@ -4,9 +4,9 @@ from django.http import Http404
 from django.utils.safestring import mark_safe
 from django.views.generic import TemplateView
 
-from database.models import Organism, RelativeAssociation, Sample, Study
+from database.models import Comparison, Group, Organism, QualitativeFinding, QuantitativeFinding, Study
 
-from .graph import build_association_graph
+from .graph import build_comparison_graph
 from .model_diagram import render_model_diagram_svg
 
 
@@ -22,9 +22,14 @@ class HomeView(TemplateView):
                 'url_name': 'database:study-list',
             },
             {
-                'label': 'Samples',
-                'count': Sample.objects.count(),
-                'url_name': 'database:sample-list',
+                'label': 'Groups',
+                'count': Group.objects.count(),
+                'url_name': 'database:group-list',
+            },
+            {
+                'label': 'Comparisons',
+                'count': Comparison.objects.count(),
+                'url_name': 'database:comparison-list',
             },
             {
                 'label': 'Organisms',
@@ -32,9 +37,14 @@ class HomeView(TemplateView):
                 'url_name': 'database:organism-list',
             },
             {
-                'label': 'Associations',
-                'count': RelativeAssociation.objects.count(),
-                'url_name': 'database:relativeassociation-list',
+                'label': 'Qualitative',
+                'count': QualitativeFinding.objects.count(),
+                'url_name': 'database:qualitativefinding-list',
+            },
+            {
+                'label': 'Quantitative',
+                'count': QuantitativeFinding.objects.count(),
+                'url_name': 'database:quantitativefinding-list',
             },
         ]
         return context
@@ -76,44 +86,45 @@ class GraphView(TemplateView):
     template_name = 'core/graph.html'
 
     def get_queryset(self):
-        queryset = RelativeAssociation.objects.select_related(
-            'sample',
-            'sample__study',
-            'organism_1',
-            'organism_2',
+        queryset = QualitativeFinding.objects.select_related(
+            'comparison',
+            'comparison__study',
+            'comparison__group_a',
+            'comparison__group_b',
+            'organism',
         )
 
         study_id = self.request.GET.get('study', '').strip()
-        sign = self.request.GET.get('sign', '').strip()
-        association_type = self.request.GET.get('association_type', '').strip()
+        direction = self.request.GET.get('direction', '').strip()
+        comparison_query = self.request.GET.get('comparison', '').strip()
         organism_query = self.request.GET.get('organism', '').strip()
 
         if study_id:
-            queryset = queryset.filter(sample__study_id=study_id)
-        if sign:
-            queryset = queryset.filter(sign=sign)
-        if association_type:
-            queryset = queryset.filter(association_type__icontains=association_type)
+            queryset = queryset.filter(comparison__study_id=study_id)
+        if direction:
+            queryset = queryset.filter(direction=direction)
+        if comparison_query:
+            queryset = queryset.filter(
+                Q(comparison__label__icontains=comparison_query)
+                | Q(comparison__group_a__name__icontains=comparison_query)
+                | Q(comparison__group_b__name__icontains=comparison_query)
+            )
         if organism_query:
             queryset = queryset.filter(
-                Q(organism_1__scientific_name__icontains=organism_query)
-                | Q(organism_2__scientific_name__icontains=organism_query)
-                | Q(organism_1__genus__icontains=organism_query)
-                | Q(organism_2__genus__icontains=organism_query)
-                | Q(organism_1__species__icontains=organism_query)
-                | Q(organism_2__species__icontains=organism_query)
+                Q(organism__scientific_name__icontains=organism_query)
+                | Q(organism__rank__icontains=organism_query)
             )
 
-        return queryset.order_by('organism_1__scientific_name', 'organism_2__scientific_name')
+        return queryset.order_by('comparison__label', 'organism__scientific_name')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        graph_data = build_association_graph(self.get_queryset())
+        graph_data = build_comparison_graph(self.get_queryset())
         context['graph_data'] = graph_data
         context['studies'] = Study.objects.order_by('title')
-        context['sign_choices'] = RelativeAssociation.Sign.choices
+        context['direction_choices'] = QualitativeFinding.Direction.choices
         context['current_study'] = self.request.GET.get('study', '').strip()
-        context['current_sign'] = self.request.GET.get('sign', '').strip()
-        context['current_association_type'] = self.request.GET.get('association_type', '').strip()
+        context['current_direction'] = self.request.GET.get('direction', '').strip()
+        context['current_comparison'] = self.request.GET.get('comparison', '').strip()
         context['current_organism'] = self.request.GET.get('organism', '').strip()
         return context

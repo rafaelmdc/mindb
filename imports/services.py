@@ -1,5 +1,4 @@
 import csv
-import json
 from dataclasses import asdict, dataclass
 from io import StringIO
 
@@ -8,13 +7,14 @@ from django.db import transaction
 from database.models import (
     AlphaMetric,
     BetaMetric,
-    CoreMetadata,
+    Comparison,
+    Group,
     ImportBatch,
     MetadataValue,
     MetadataVariable,
     Organism,
-    RelativeAssociation,
-    Sample,
+    QualitativeFinding,
+    QuantitativeFinding,
     Study,
 )
 
@@ -37,11 +37,12 @@ class ImportPreview:
 SUPPORTED_IMPORT_TYPES = (
     'organism',
     'study',
-    'sample',
-    'core_metadata',
+    'group',
+    'comparison',
     'metadata_variable',
     'metadata_value',
-    'relative_association',
+    'qualitative_finding',
+    'quantitative_finding',
     'alpha_metric',
     'beta_metric',
 )
@@ -57,9 +58,6 @@ def build_preview(*, file_name, content, import_type, batch_name):
     reader = csv.DictReader(StringIO(content))
     fieldnames = reader.fieldnames or []
     rows = list(reader)
-
-    # Each import type owns its own contract and validation path instead of
-    # sharing one generic parser with many conditional branches.
     preview_builder = PREVIEW_BUILDERS[import_type]
     return preview_builder(
         file_name=file_name,
@@ -170,17 +168,63 @@ def _parse_optional_bool(value, field_name):
     return None, f'{field_name} must be a boolean.'
 
 
-def _resolve_sample(study_source_doi, sample_label):
-    # Sample lookups intentionally use the contract-level natural key rather
-    # than exposing internal database IDs in CSV files.
-    return Sample.objects.filter(
-        study__source_doi=study_source_doi,
-        label=sample_label,
-    ).select_related('study').first()
+def _resolve_study(study_doi, study_title):
+    if study_doi:
+        return Study.objects.filter(doi=study_doi).first()
+    if study_title:
+        return Study.objects.filter(title=study_title).first()
+    return None
+
+
+def _resolve_group(study_doi, study_title, group_name):
+    if not group_name:
+        return None
+    study = _resolve_study(study_doi, study_title)
+    if not study:
+        return None
+    return Group.objects.filter(study=study, name=group_name).select_related('study').first()
+
+
+def _resolve_comparison(study_doi, study_title, group_a_name, group_b_name, label):
+    study = _resolve_study(study_doi, study_title)
+    if not study:
+        return None
+    return (
+        Comparison.objects.filter(
+            study=study,
+            group_a__name=group_a_name,
+            group_b__name=group_b_name,
+            label=label,
+        )
+        .select_related('study', 'group_a', 'group_b')
+        .first()
+    )
+
+
+def _resolve_organism(scientific_name, ncbi_taxonomy_id):
+    if ncbi_taxonomy_id is not None:
+        organism = Organism.objects.filter(ncbi_taxonomy_id=ncbi_taxonomy_id).first()
+        if organism:
+            return organism
+    if scientific_name:
+        return Organism.objects.filter(scientific_name__iexact=scientific_name).first()
+    return None
+
+
+def _row_requires_study_reference(row, errors, row_number):
+    if row.get('study_doi') or row.get('study_title'):
+        return True
+    errors.append(
+        {
+            'row_number': row_number,
+            'message': 'At least one of study_doi or study_title is required.',
+        }
+    )
+    return False
 
 
 def _build_organism_preview(*, file_name, fieldnames, rows, batch_name, import_type):
-    required_columns = ('ncbi_taxonomy_id', 'scientific_name', 'taxonomic_rank')
+    required_columns = ('scientific_name', 'rank')
     missing_columns = [column for column in required_columns if column not in fieldnames]
     if missing_columns:
         return _missing_columns_preview(
@@ -191,45 +235,48 @@ def _build_organism_preview(*, file_name, fieldnames, rows, batch_name, import_t
             missing_columns=missing_columns,
         )
 
-    existing_taxonomy_ids = set(Organism.objects.values_list('ncbi_taxonomy_id', flat=True))
+    existing_taxonomy_ids = set(
+        Organism.objects.exclude(ncbi_taxonomy_id__isnull=True).values_list('ncbi_taxonomy_id', flat=True)
+    )
+    existing_names = {name.lower() for name in Organism.objects.values_list('scientific_name', flat=True)}
     seen_taxonomy_ids = set()
+    seen_names = set()
     valid_rows = []
     errors = []
     duplicates = []
 
     for row_number, raw_row in enumerate(rows, start=2):
         row = _cleaned_row(raw_row)
-        taxonomy_id, error = _parse_int(row['ncbi_taxonomy_id'], 'ncbi_taxonomy_id')
-        if error:
-            errors.append({'row_number': row_number, 'message': error})
-            continue
-        if not row['scientific_name'] or not row['taxonomic_rank']:
-            errors.append({'row_number': row_number, 'message': 'scientific_name and taxonomic_rank are required.'})
+        if not row['scientific_name'] or not row['rank']:
+            errors.append({'row_number': row_number, 'message': 'scientific_name and rank are required.'})
             continue
 
-        duplicate_key = taxonomy_id
-        if duplicate_key in seen_taxonomy_ids:
-            duplicates.append({'row_number': row_number, 'message': 'Duplicate ncbi_taxonomy_id in uploaded file.', 'taxonomy_id': taxonomy_id})
-            continue
-        if duplicate_key in existing_taxonomy_ids:
-            duplicates.append({'row_number': row_number, 'message': 'Organism with this ncbi_taxonomy_id already exists.', 'taxonomy_id': taxonomy_id})
+        taxonomy_id, taxonomy_error = _parse_optional_int(row.get('ncbi_taxonomy_id', ''), 'ncbi_taxonomy_id')
+        if taxonomy_error:
+            errors.append({'row_number': row_number, 'message': taxonomy_error})
             continue
 
-        parent_taxonomy_id, parent_error = _parse_optional_int(row.get('parent_ncbi_taxonomy_id', ''), 'parent_ncbi_taxonomy_id')
-        if parent_error:
-            errors.append({'row_number': row_number, 'message': parent_error})
+        duplicate_name_key = row['scientific_name'].lower()
+        if taxonomy_id is not None:
+            if taxonomy_id in seen_taxonomy_ids:
+                duplicates.append({'row_number': row_number, 'message': 'Duplicate ncbi_taxonomy_id in uploaded file.'})
+                continue
+            if taxonomy_id in existing_taxonomy_ids:
+                duplicates.append({'row_number': row_number, 'message': 'Organism with this ncbi_taxonomy_id already exists.'})
+                continue
+        elif duplicate_name_key in seen_names or duplicate_name_key in existing_names:
+            duplicates.append({'row_number': row_number, 'message': 'Organism with this scientific_name already exists.'})
             continue
 
-        seen_taxonomy_ids.add(duplicate_key)
+        if taxonomy_id is not None:
+            seen_taxonomy_ids.add(taxonomy_id)
+        seen_names.add(duplicate_name_key)
         valid_rows.append(
             {
                 'row_number': row_number,
                 'ncbi_taxonomy_id': taxonomy_id,
                 'scientific_name': row['scientific_name'],
-                'taxonomic_rank': row['taxonomic_rank'],
-                'parent_ncbi_taxonomy_id': parent_taxonomy_id,
-                'genus': row.get('genus', ''),
-                'species': row.get('species', ''),
+                'rank': row['rank'],
                 'notes': row.get('notes', ''),
             }
         )
@@ -257,10 +304,10 @@ def _build_study_preview(*, file_name, fieldnames, rows, batch_name, import_type
             missing_columns=missing_columns,
         )
 
-    existing_dois = set(
-        Study.objects.exclude(source_doi__isnull=True).exclude(source_doi='').values_list('source_doi', flat=True)
-    )
+    existing_dois = set(Study.objects.exclude(doi__isnull=True).exclude(doi='').values_list('doi', flat=True))
+    existing_titles = {title.lower() for title in Study.objects.values_list('title', flat=True)}
     seen_dois = set()
+    seen_titles = set()
     valid_rows = []
     errors = []
     duplicates = []
@@ -271,29 +318,34 @@ def _build_study_preview(*, file_name, fieldnames, rows, batch_name, import_type
             errors.append({'row_number': row_number, 'message': 'title is required.'})
             continue
 
-        publication_year, year_error = _parse_optional_int(row.get('publication_year', ''), 'publication_year')
+        year, year_error = _parse_optional_int(row.get('year', ''), 'year')
         if year_error:
             errors.append({'row_number': row_number, 'message': year_error})
             continue
 
-        source_doi = row.get('source_doi', '')
-        if source_doi:
-            if source_doi in seen_dois:
-                duplicates.append({'row_number': row_number, 'message': 'Duplicate source_doi in uploaded file.', 'source_doi': source_doi})
+        doi = row.get('doi', '')
+        title_key = row['title'].lower()
+        if doi:
+            if doi in seen_dois:
+                duplicates.append({'row_number': row_number, 'message': 'Duplicate doi in uploaded file.'})
                 continue
-            if source_doi in existing_dois:
-                duplicates.append({'row_number': row_number, 'message': 'Study with this source_doi already exists.', 'source_doi': source_doi})
+            if doi in existing_dois:
+                duplicates.append({'row_number': row_number, 'message': 'Study with this doi already exists.'})
                 continue
-            seen_dois.add(source_doi)
+            seen_dois.add(doi)
+        elif title_key in seen_titles or title_key in existing_titles:
+            duplicates.append({'row_number': row_number, 'message': 'Study with this title already exists.'})
+            continue
 
+        seen_titles.add(title_key)
         valid_rows.append(
             {
                 'row_number': row_number,
-                'source_doi': source_doi or None,
+                'doi': doi or None,
                 'title': row['title'],
                 'country': row.get('country', ''),
                 'journal': row.get('journal', ''),
-                'publication_year': publication_year,
+                'year': year,
                 'notes': row.get('notes', ''),
             }
         )
@@ -309,8 +361,8 @@ def _build_study_preview(*, file_name, fieldnames, rows, batch_name, import_type
     )
 
 
-def _build_sample_preview(*, file_name, fieldnames, rows, batch_name, import_type):
-    required_columns = ('study_source_doi', 'label')
+def _build_group_preview(*, file_name, fieldnames, rows, batch_name, import_type):
+    required_columns = ('study_doi', 'study_title', 'name')
     missing_columns = [column for column in required_columns if column not in fieldnames]
     if missing_columns:
         return _missing_columns_preview(
@@ -321,28 +373,23 @@ def _build_sample_preview(*, file_name, fieldnames, rows, batch_name, import_typ
             missing_columns=missing_columns,
         )
 
-    existing_pairs = set(
-        Sample.objects.exclude(study__source_doi__isnull=True).values_list('study__source_doi', 'label')
-    )
-    seen_pairs = set()
-    study_map = {
-        study.source_doi: study.id
-        for study in Study.objects.exclude(source_doi__isnull=True).exclude(source_doi='')
-    }
+    existing_keys = set(Group.objects.values_list('study_id', 'name'))
+    seen_keys = set()
     valid_rows = []
     errors = []
     duplicates = []
 
     for row_number, raw_row in enumerate(rows, start=2):
         row = _cleaned_row(raw_row)
-        study_source_doi = row['study_source_doi']
-        label = row['label']
-        if not study_source_doi or not label:
-            errors.append({'row_number': row_number, 'message': 'study_source_doi and label are required.'})
+        if not _row_requires_study_reference(row, errors, row_number):
             continue
-        study_id = study_map.get(study_source_doi)
-        if not study_id:
-            errors.append({'row_number': row_number, 'message': 'study_source_doi does not resolve to an existing Study.'})
+        if not row['name']:
+            errors.append({'row_number': row_number, 'message': 'name is required.'})
+            continue
+
+        study = _resolve_study(row['study_doi'], row['study_title'])
+        if not study:
+            errors.append({'row_number': row_number, 'message': 'Study reference does not resolve to an existing Study.'})
             continue
 
         sample_size, sample_size_error = _parse_optional_int(row.get('sample_size', ''), 'sample_size')
@@ -350,25 +397,26 @@ def _build_sample_preview(*, file_name, fieldnames, rows, batch_name, import_typ
             errors.append({'row_number': row_number, 'message': sample_size_error})
             continue
 
-        duplicate_key = (study_source_doi, label)
-        if duplicate_key in seen_pairs:
-            duplicates.append({'row_number': row_number, 'message': 'Duplicate study/sample pair in uploaded file.', 'study_source_doi': study_source_doi, 'label': label})
+        duplicate_key = (study.pk, row['name'])
+        if duplicate_key in seen_keys:
+            duplicates.append({'row_number': row_number, 'message': 'Duplicate study/group pair in uploaded file.'})
             continue
-        if duplicate_key in existing_pairs:
-            duplicates.append({'row_number': row_number, 'message': 'Sample with this study_source_doi and label already exists.', 'study_source_doi': study_source_doi, 'label': label})
+        if duplicate_key in existing_keys:
+            duplicates.append({'row_number': row_number, 'message': 'Group with this study and name already exists.'})
             continue
-        seen_pairs.add(duplicate_key)
+        seen_keys.add(duplicate_key)
 
         valid_rows.append(
             {
                 'row_number': row_number,
-                'study_id': study_id,
-                'study_source_doi': study_source_doi,
-                'label': label,
-                'site': row.get('site', ''),
-                'method': row.get('method', ''),
-                'cohort': row.get('cohort', ''),
+                'study_id': study.pk,
+                'study_doi': row['study_doi'],
+                'study_title': row['study_title'],
+                'name': row['name'],
+                'condition': row.get('condition', ''),
                 'sample_size': sample_size,
+                'cohort': row.get('cohort', ''),
+                'site': row.get('site', ''),
                 'notes': row.get('notes', ''),
             }
         )
@@ -384,8 +432,8 @@ def _build_sample_preview(*, file_name, fieldnames, rows, batch_name, import_typ
     )
 
 
-def _build_core_metadata_preview(*, file_name, fieldnames, rows, batch_name, import_type):
-    required_columns = ('study_source_doi', 'sample_label')
+def _build_comparison_preview(*, file_name, fieldnames, rows, batch_name, import_type):
+    required_columns = ('study_doi', 'study_title', 'group_a_name', 'group_b_name', 'label')
     missing_columns = [column for column in required_columns if column not in fieldnames]
     if missing_columns:
         return _missing_columns_preview(
@@ -396,52 +444,49 @@ def _build_core_metadata_preview(*, file_name, fieldnames, rows, batch_name, imp
             missing_columns=missing_columns,
         )
 
-    existing_sample_ids = set(CoreMetadata.objects.values_list('sample_id', flat=True))
-    seen_pairs = set()
+    existing_keys = set(Comparison.objects.values_list('study_id', 'group_a_id', 'group_b_id', 'label'))
+    seen_keys = set()
     valid_rows = []
     errors = []
     duplicates = []
 
     for row_number, raw_row in enumerate(rows, start=2):
         row = _cleaned_row(raw_row)
-        if not row['study_source_doi'] or not row['sample_label']:
-            errors.append({'row_number': row_number, 'message': 'study_source_doi and sample_label are required.'})
+        if not _row_requires_study_reference(row, errors, row_number):
+            continue
+        if not row['group_a_name'] or not row['group_b_name'] or not row['label']:
+            errors.append({'row_number': row_number, 'message': 'group_a_name, group_b_name, and label are required.'})
             continue
 
-        sample = _resolve_sample(row['study_source_doi'], row['sample_label'])
-        if not sample:
-            errors.append({'row_number': row_number, 'message': 'study_source_doi and sample_label do not resolve to an existing Sample.'})
+        group_a = _resolve_group(row['study_doi'], row['study_title'], row['group_a_name'])
+        group_b = _resolve_group(row['study_doi'], row['study_title'], row['group_b_name'])
+        if not group_a or not group_b:
+            errors.append({'row_number': row_number, 'message': 'Both groups must resolve to existing Group rows.'})
+            continue
+        if group_a.pk == group_b.pk:
+            errors.append({'row_number': row_number, 'message': 'Comparison groups must be different.'})
             continue
 
-        numeric_values = {}
-        numeric_error = None
-        for field_name in ('male_percent', 'age_mean', 'age_sd', 'bmi_mean', 'bmi_sd'):
-            value, error = _parse_optional_float(row.get(field_name, ''), field_name)
-            if error:
-                numeric_error = error
-                break
-            numeric_values[field_name] = value
-        if numeric_error:
-            errors.append({'row_number': row_number, 'message': numeric_error})
+        duplicate_key = (group_a.study_id, group_a.pk, group_b.pk, row['label'])
+        if duplicate_key in seen_keys:
+            duplicates.append({'row_number': row_number, 'message': 'Duplicate comparison row in uploaded file.'})
             continue
-
-        duplicate_key = (row['study_source_doi'], row['sample_label'])
-        if duplicate_key in seen_pairs:
-            duplicates.append({'row_number': row_number, 'message': 'Duplicate study/sample pair in uploaded file.'})
+        if duplicate_key in existing_keys:
+            duplicates.append({'row_number': row_number, 'message': 'Comparison already exists for this study, groups, and label.'})
             continue
-        if sample.pk in existing_sample_ids:
-            duplicates.append({'row_number': row_number, 'message': 'CoreMetadata already exists for this sample.'})
-            continue
-        seen_pairs.add(duplicate_key)
+        seen_keys.add(duplicate_key)
 
         valid_rows.append(
             {
                 'row_number': row_number,
-                'sample_id': sample.pk,
-                'study_source_doi': row['study_source_doi'],
-                'sample_label': row['sample_label'],
-                'condition': row.get('condition', ''),
-                **numeric_values,
+                'study_id': group_a.study_id,
+                'study_doi': row['study_doi'],
+                'study_title': row['study_title'],
+                'group_a_id': group_a.pk,
+                'group_b_id': group_b.pk,
+                'group_a_name': group_a.name,
+                'group_b_name': group_b.name,
+                'label': row['label'],
                 'notes': row.get('notes', ''),
             }
         )
@@ -458,7 +503,7 @@ def _build_core_metadata_preview(*, file_name, fieldnames, rows, batch_name, imp
 
 
 def _build_metadata_variable_preview(*, file_name, fieldnames, rows, batch_name, import_type):
-    required_columns = ('name', 'display_name', 'value_type')
+    required_columns = ('name', 'value_type')
     missing_columns = [column for column in required_columns if column not in fieldnames]
     if missing_columns:
         return _missing_columns_preview(
@@ -477,13 +522,10 @@ def _build_metadata_variable_preview(*, file_name, fieldnames, rows, batch_name,
 
     for row_number, raw_row in enumerate(rows, start=2):
         row = _cleaned_row(raw_row)
-        name = row['name']
-        display_name = row['display_name']
-        value_type = row['value_type']
-        if not name or not display_name or not value_type:
-            errors.append({'row_number': row_number, 'message': 'name, display_name, and value_type are required.'})
+        if not row['name'] or not row['value_type']:
+            errors.append({'row_number': row_number, 'message': 'name and value_type are required.'})
             continue
-        if value_type not in MetadataVariable.ValueType.values:
+        if row['value_type'] not in MetadataVariable.ValueType.values:
             errors.append({'row_number': row_number, 'message': 'value_type must be one of: float, int, text, bool.'})
             continue
 
@@ -492,36 +534,21 @@ def _build_metadata_variable_preview(*, file_name, fieldnames, rows, batch_name,
             errors.append({'row_number': row_number, 'message': bool_error})
             continue
 
-        allowed_values = []
-        if row.get('allowed_values', ''):
-            try:
-                allowed_values = json.loads(row['allowed_values'])
-            except json.JSONDecodeError:
-                errors.append({'row_number': row_number, 'message': 'allowed_values must be a JSON array.'})
-                continue
-            if not isinstance(allowed_values, list):
-                errors.append({'row_number': row_number, 'message': 'allowed_values must be a JSON array.'})
-                continue
-
-        if name in seen_names:
-            duplicates.append({'row_number': row_number, 'message': 'Duplicate variable name in uploaded file.', 'name': name})
+        if row['name'] in seen_names:
+            duplicates.append({'row_number': row_number, 'message': 'Duplicate variable name in uploaded file.'})
             continue
-        if name in existing_names:
-            duplicates.append({'row_number': row_number, 'message': 'MetadataVariable with this name already exists.', 'name': name})
+        if row['name'] in existing_names:
+            duplicates.append({'row_number': row_number, 'message': 'MetadataVariable with this name already exists.'})
             continue
-        seen_names.add(name)
+        seen_names.add(row['name'])
 
         valid_rows.append(
             {
                 'row_number': row_number,
-                'name': name,
-                'display_name': display_name,
-                'domain': row.get('domain', ''),
-                'value_type': value_type,
-                'default_unit': row.get('default_unit', ''),
-                'description': row.get('description', ''),
+                'name': row['name'],
+                'display_name': row.get('display_name', ''),
+                'value_type': row['value_type'],
                 'is_filterable': False if is_filterable is None else is_filterable,
-                'allowed_values': allowed_values,
             }
         )
 
@@ -537,7 +564,7 @@ def _build_metadata_variable_preview(*, file_name, fieldnames, rows, batch_name,
 
 
 def _build_metadata_value_preview(*, file_name, fieldnames, rows, batch_name, import_type):
-    required_columns = ('study_source_doi', 'sample_label', 'variable_name')
+    required_columns = ('study_doi', 'study_title', 'group_name', 'variable_name')
     missing_columns = [column for column in required_columns if column not in fieldnames]
     if missing_columns:
         return _missing_columns_preview(
@@ -548,12 +575,7 @@ def _build_metadata_value_preview(*, file_name, fieldnames, rows, batch_name, im
             missing_columns=missing_columns,
         )
 
-    existing_keys = {
-        (study_source_doi, label, variable_name)
-        for study_source_doi, label, variable_name in MetadataValue.objects.filter(
-            sample__study__source_doi__isnull=False
-        ).values_list('sample__study__source_doi', 'sample__label', 'variable__name')
-    }
+    existing_keys = set(MetadataValue.objects.values_list('group_id', 'variable_id'))
     variables = {variable.name: variable for variable in MetadataVariable.objects.all()}
     seen_keys = set()
     valid_rows = []
@@ -562,13 +584,15 @@ def _build_metadata_value_preview(*, file_name, fieldnames, rows, batch_name, im
 
     for row_number, raw_row in enumerate(rows, start=2):
         row = _cleaned_row(raw_row)
-        if not row['study_source_doi'] or not row['sample_label'] or not row['variable_name']:
-            errors.append({'row_number': row_number, 'message': 'study_source_doi, sample_label, and variable_name are required.'})
+        if not _row_requires_study_reference(row, errors, row_number):
+            continue
+        if not row['group_name'] or not row['variable_name']:
+            errors.append({'row_number': row_number, 'message': 'group_name and variable_name are required.'})
             continue
 
-        sample = _resolve_sample(row['study_source_doi'], row['sample_label'])
-        if not sample:
-            errors.append({'row_number': row_number, 'message': 'study_source_doi and sample_label do not resolve to an existing Sample.'})
+        group = _resolve_group(row['study_doi'], row['study_title'], row['group_name'])
+        if not group:
+            errors.append({'row_number': row_number, 'message': 'Group reference does not resolve to an existing Group.'})
             continue
 
         variable = variables.get(row['variable_name'])
@@ -576,9 +600,6 @@ def _build_metadata_value_preview(*, file_name, fieldnames, rows, batch_name, im
             errors.append({'row_number': row_number, 'message': 'variable_name does not resolve to an existing MetadataVariable.'})
             continue
 
-        # The EAV contract allows exactly one typed value and it must match
-        # the variable's declared value_type, so both checks happen here
-        # before the row is allowed into the preview.
         typed_fields = {}
         typed_count = 0
 
@@ -622,27 +643,125 @@ def _build_metadata_value_preview(*, file_name, fieldnames, rows, batch_name, im
             errors.append({'row_number': row_number, 'message': f'Variable "{variable.name}" requires {expected_field}.'})
             continue
 
-        duplicate_key = (row['study_source_doi'], row['sample_label'], variable.name)
+        duplicate_key = (group.pk, variable.pk)
         if duplicate_key in seen_keys:
-            duplicates.append({'row_number': row_number, 'message': 'Duplicate sample/variable row in uploaded file.'})
+            duplicates.append({'row_number': row_number, 'message': 'Duplicate group/variable row in uploaded file.'})
             continue
         if duplicate_key in existing_keys:
-            duplicates.append({'row_number': row_number, 'message': 'MetadataValue already exists for this sample and variable.'})
+            duplicates.append({'row_number': row_number, 'message': 'MetadataValue already exists for this group and variable.'})
             continue
         seen_keys.add(duplicate_key)
 
         valid_rows.append(
             {
                 'row_number': row_number,
-                'sample_id': sample.pk,
+                'group_id': group.pk,
                 'variable_id': variable.pk,
-                'study_source_doi': row['study_source_doi'],
-                'sample_label': row['sample_label'],
+                'study_doi': row['study_doi'],
+                'study_title': row['study_title'],
+                'group_name': row['group_name'],
                 'variable_name': variable.name,
                 **typed_fields,
-                'unit': row.get('unit', ''),
-                'raw_value': row.get('raw_value', ''),
-                'variation': row.get('variation', ''),
+            }
+        )
+
+    return _build_preview_response(
+        batch_name=batch_name,
+        import_type=import_type,
+        file_name=file_name,
+        required_columns=required_columns,
+        valid_rows=valid_rows,
+        errors=errors,
+        duplicates=duplicates,
+    )
+
+
+def _build_qualitative_finding_preview(*, file_name, fieldnames, rows, batch_name, import_type):
+    required_columns = (
+        'study_doi',
+        'study_title',
+        'group_a_name',
+        'group_b_name',
+        'comparison_label',
+        'organism_scientific_name',
+        'direction',
+        'source',
+    )
+    missing_columns = [column for column in required_columns if column not in fieldnames]
+    if missing_columns:
+        return _missing_columns_preview(
+            batch_name=batch_name,
+            import_type=import_type,
+            file_name=file_name,
+            required_columns=required_columns,
+            missing_columns=missing_columns,
+        )
+
+    existing_keys = set(
+        QualitativeFinding.objects.values_list('comparison_id', 'organism_id', 'direction', 'source')
+    )
+    seen_keys = set()
+    valid_rows = []
+    errors = []
+    duplicates = []
+
+    for row_number, raw_row in enumerate(rows, start=2):
+        row = _cleaned_row(raw_row)
+        if not _row_requires_study_reference(row, errors, row_number):
+            continue
+        if not row['group_a_name'] or not row['group_b_name'] or not row['comparison_label']:
+            errors.append({'row_number': row_number, 'message': 'Comparison reference fields are required.'})
+            continue
+        if not row['organism_scientific_name'] or not row['direction'] or not row['source']:
+            errors.append({'row_number': row_number, 'message': 'organism_scientific_name, direction, and source are required.'})
+            continue
+
+        comparison = _resolve_comparison(
+            row['study_doi'],
+            row['study_title'],
+            row['group_a_name'],
+            row['group_b_name'],
+            row['comparison_label'],
+        )
+        if not comparison:
+            errors.append({'row_number': row_number, 'message': 'Comparison reference does not resolve to an existing Comparison.'})
+            continue
+
+        taxonomy_id, taxonomy_error = _parse_optional_int(row.get('organism_ncbi_taxonomy_id', ''), 'organism_ncbi_taxonomy_id')
+        if taxonomy_error:
+            errors.append({'row_number': row_number, 'message': taxonomy_error})
+            continue
+        organism = _resolve_organism(row['organism_scientific_name'], taxonomy_id)
+        if not organism:
+            errors.append({'row_number': row_number, 'message': 'Organism reference does not resolve to an existing Organism.'})
+            continue
+
+        if row['direction'] not in QualitativeFinding.Direction.values:
+            errors.append({'row_number': row_number, 'message': 'direction must be one of: enriched, depleted, increased, decreased.'})
+            continue
+
+        duplicate_key = (comparison.pk, organism.pk, row['direction'], row['source'])
+        if duplicate_key in seen_keys:
+            duplicates.append({'row_number': row_number, 'message': 'Duplicate qualitative finding row in uploaded file.'})
+            continue
+        if duplicate_key in existing_keys:
+            duplicates.append({'row_number': row_number, 'message': 'QualitativeFinding already exists for this comparison, organism, direction, and source.'})
+            continue
+        seen_keys.add(duplicate_key)
+
+        valid_rows.append(
+            {
+                'row_number': row_number,
+                'comparison_id': comparison.pk,
+                'organism_id': organism.pk,
+                'study_doi': row['study_doi'],
+                'study_title': row['study_title'],
+                'group_a_name': row['group_a_name'],
+                'group_b_name': row['group_b_name'],
+                'comparison_label': row['comparison_label'],
+                'organism_scientific_name': organism.scientific_name,
+                'direction': row['direction'],
+                'source': row['source'],
                 'notes': row.get('notes', ''),
             }
         )
@@ -658,13 +777,15 @@ def _build_metadata_value_preview(*, file_name, fieldnames, rows, batch_name, im
     )
 
 
-def _build_relative_association_preview(*, file_name, fieldnames, rows, batch_name, import_type):
+def _build_quantitative_finding_preview(*, file_name, fieldnames, rows, batch_name, import_type):
     required_columns = (
-        'study_source_doi',
-        'sample_label',
-        'organism_1_taxonomy_id',
-        'organism_2_taxonomy_id',
-        'association_type',
+        'study_doi',
+        'study_title',
+        'group_name',
+        'organism_scientific_name',
+        'value_type',
+        'value',
+        'source',
     )
     missing_columns = [column for column in required_columns if column not in fieldnames]
     if missing_columns:
@@ -676,14 +797,8 @@ def _build_relative_association_preview(*, file_name, fieldnames, rows, batch_na
             missing_columns=missing_columns,
         )
 
-    organisms = {organism.ncbi_taxonomy_id: organism for organism in Organism.objects.all()}
     existing_keys = set(
-        RelativeAssociation.objects.values_list(
-            'sample_id',
-            'organism_1_id',
-            'organism_2_id',
-            'association_type',
-        )
+        QuantitativeFinding.objects.values_list('group_id', 'organism_id', 'value_type', 'source')
     )
     seen_keys = set()
     valid_rows = []
@@ -692,76 +807,57 @@ def _build_relative_association_preview(*, file_name, fieldnames, rows, batch_na
 
     for row_number, raw_row in enumerate(rows, start=2):
         row = _cleaned_row(raw_row)
-        if not row['study_source_doi'] or not row['sample_label'] or not row['association_type']:
-            errors.append({'row_number': row_number, 'message': 'study_source_doi, sample_label, and association_type are required.'})
+        if not _row_requires_study_reference(row, errors, row_number):
+            continue
+        if not row['group_name'] or not row['organism_scientific_name'] or not row['value_type'] or not row['source']:
+            errors.append({'row_number': row_number, 'message': 'group_name, organism_scientific_name, value_type, and source are required.'})
             continue
 
-        sample = _resolve_sample(row['study_source_doi'], row['sample_label'])
-        if not sample:
-            errors.append({'row_number': row_number, 'message': 'study_source_doi and sample_label do not resolve to an existing Sample.'})
+        group = _resolve_group(row['study_doi'], row['study_title'], row['group_name'])
+        if not group:
+            errors.append({'row_number': row_number, 'message': 'Group reference does not resolve to an existing Group.'})
             continue
 
-        taxonomy_1, error_1 = _parse_int(row['organism_1_taxonomy_id'], 'organism_1_taxonomy_id')
-        taxonomy_2, error_2 = _parse_int(row['organism_2_taxonomy_id'], 'organism_2_taxonomy_id')
-        if error_1 or error_2:
-            errors.append({'row_number': row_number, 'message': error_1 or error_2})
+        taxonomy_id, taxonomy_error = _parse_optional_int(row.get('organism_ncbi_taxonomy_id', ''), 'organism_ncbi_taxonomy_id')
+        if taxonomy_error:
+            errors.append({'row_number': row_number, 'message': taxonomy_error})
             continue
-        if taxonomy_1 == taxonomy_2:
-            errors.append({'row_number': row_number, 'message': 'RelativeAssociation self-pairs are not allowed.'})
-            continue
-
-        organism_1 = organisms.get(taxonomy_1)
-        organism_2 = organisms.get(taxonomy_2)
-        if not organism_1 or not organism_2:
-            errors.append({'row_number': row_number, 'message': 'Both organism taxonomy IDs must resolve to existing Organism rows.'})
+        organism = _resolve_organism(row['organism_scientific_name'], taxonomy_id)
+        if not organism:
+            errors.append({'row_number': row_number, 'message': 'Organism reference does not resolve to an existing Organism.'})
             continue
 
-        # Reverse organism pairs should collapse onto one canonical key so
-        # duplicate detection matches the model constraint.
-        if organism_1.pk > organism_2.pk:
-            organism_1, organism_2 = organism_2, organism_1
-            taxonomy_1, taxonomy_2 = taxonomy_2, taxonomy_1
-
-        parsed_values = {}
-        numeric_error = None
-        for field_name in ('value', 'p_value', 'q_value', 'confidence'):
-            value, error = _parse_optional_float(row.get(field_name, ''), field_name)
-            if error:
-                numeric_error = error
-                break
-            parsed_values[field_name] = value
-        if numeric_error:
-            errors.append({'row_number': row_number, 'message': numeric_error})
+        if row['value_type'] not in QuantitativeFinding.ValueType.values:
+            errors.append({'row_number': row_number, 'message': 'value_type must be one of: relative_abundance.'})
             continue
 
-        sign = row.get('sign', '')
-        if sign and sign not in RelativeAssociation.Sign.values:
-            errors.append({'row_number': row_number, 'message': 'sign must be one of: positive, negative, neutral.'})
+        value, value_error = _parse_float(row.get('value', ''), 'value')
+        if value_error:
+            errors.append({'row_number': row_number, 'message': value_error})
             continue
 
-        duplicate_key = (sample.pk, organism_1.pk, organism_2.pk, row['association_type'])
+        duplicate_key = (group.pk, organism.pk, row['value_type'], row['source'])
         if duplicate_key in seen_keys:
-            duplicates.append({'row_number': row_number, 'message': 'Duplicate association row in uploaded file.'})
+            duplicates.append({'row_number': row_number, 'message': 'Duplicate quantitative finding row in uploaded file.'})
             continue
         if duplicate_key in existing_keys:
-            duplicates.append({'row_number': row_number, 'message': 'RelativeAssociation already exists for this canonical organism pair and association type.'})
+            duplicates.append({'row_number': row_number, 'message': 'QuantitativeFinding already exists for this group, organism, value_type, and source.'})
             continue
         seen_keys.add(duplicate_key)
 
         valid_rows.append(
             {
                 'row_number': row_number,
-                'sample_id': sample.pk,
-                'study_source_doi': row['study_source_doi'],
-                'sample_label': row['sample_label'],
-                'organism_1_id': organism_1.pk,
-                'organism_2_id': organism_2.pk,
-                'organism_1_taxonomy_id': taxonomy_1,
-                'organism_2_taxonomy_id': taxonomy_2,
-                'association_type': row['association_type'],
-                **parsed_values,
-                'sign': sign,
-                'method': row.get('method', ''),
+                'group_id': group.pk,
+                'organism_id': organism.pk,
+                'study_doi': row['study_doi'],
+                'study_title': row['study_title'],
+                'group_name': row['group_name'],
+                'organism_scientific_name': organism.scientific_name,
+                'value_type': row['value_type'],
+                'value': value,
+                'unit': row.get('unit', ''),
+                'source': row['source'],
                 'notes': row.get('notes', ''),
             }
         )
@@ -778,7 +874,7 @@ def _build_relative_association_preview(*, file_name, fieldnames, rows, batch_na
 
 
 def _build_alpha_metric_preview(*, file_name, fieldnames, rows, batch_name, import_type):
-    required_columns = ('study_source_doi', 'sample_label', 'metric_type', 'value')
+    required_columns = ('study_doi', 'study_title', 'group_name', 'metric', 'value', 'source')
     missing_columns = [column for column in required_columns if column not in fieldnames]
     if missing_columns:
         return _missing_columns_preview(
@@ -789,13 +885,7 @@ def _build_alpha_metric_preview(*, file_name, fieldnames, rows, batch_name, impo
             missing_columns=missing_columns,
         )
 
-    existing_keys = set(
-        AlphaMetric.objects.filter(sample__study__source_doi__isnull=False).values_list(
-            'sample__study__source_doi',
-            'sample__label',
-            'metric_type',
-        )
-    )
+    existing_keys = set(AlphaMetric.objects.values_list('group_id', 'metric', 'source'))
     seen_keys = set()
     valid_rows = []
     errors = []
@@ -803,13 +893,15 @@ def _build_alpha_metric_preview(*, file_name, fieldnames, rows, batch_name, impo
 
     for row_number, raw_row in enumerate(rows, start=2):
         row = _cleaned_row(raw_row)
-        if not row['study_source_doi'] or not row['sample_label'] or not row['metric_type']:
-            errors.append({'row_number': row_number, 'message': 'study_source_doi, sample_label, and metric_type are required.'})
+        if not _row_requires_study_reference(row, errors, row_number):
+            continue
+        if not row['group_name'] or not row['metric'] or not row['source']:
+            errors.append({'row_number': row_number, 'message': 'group_name, metric, and source are required.'})
             continue
 
-        sample = _resolve_sample(row['study_source_doi'], row['sample_label'])
-        if not sample:
-            errors.append({'row_number': row_number, 'message': 'study_source_doi and sample_label do not resolve to an existing Sample.'})
+        group = _resolve_group(row['study_doi'], row['study_title'], row['group_name'])
+        if not group:
+            errors.append({'row_number': row_number, 'message': 'Group reference does not resolve to an existing Group.'})
             continue
 
         value, value_error = _parse_float(row.get('value', ''), 'value')
@@ -817,24 +909,25 @@ def _build_alpha_metric_preview(*, file_name, fieldnames, rows, batch_name, impo
             errors.append({'row_number': row_number, 'message': value_error})
             continue
 
-        duplicate_key = (row['study_source_doi'], row['sample_label'], row['metric_type'])
+        duplicate_key = (group.pk, row['metric'], row['source'])
         if duplicate_key in seen_keys:
             duplicates.append({'row_number': row_number, 'message': 'Duplicate alpha metric row in uploaded file.'})
             continue
         if duplicate_key in existing_keys:
-            duplicates.append({'row_number': row_number, 'message': 'AlphaMetric already exists for this sample and metric type.'})
+            duplicates.append({'row_number': row_number, 'message': 'AlphaMetric already exists for this group, metric, and source.'})
             continue
         seen_keys.add(duplicate_key)
 
         valid_rows.append(
             {
                 'row_number': row_number,
-                'sample_id': sample.pk,
-                'study_source_doi': row['study_source_doi'],
-                'sample_label': row['sample_label'],
-                'metric_type': row['metric_type'],
+                'group_id': group.pk,
+                'study_doi': row['study_doi'],
+                'study_title': row['study_title'],
+                'group_name': row['group_name'],
+                'metric': row['metric'],
                 'value': value,
-                'unit': row.get('unit', ''),
+                'source': row['source'],
                 'notes': row.get('notes', ''),
             }
         )
@@ -851,7 +944,16 @@ def _build_alpha_metric_preview(*, file_name, fieldnames, rows, batch_name, impo
 
 
 def _build_beta_metric_preview(*, file_name, fieldnames, rows, batch_name, import_type):
-    required_columns = ('study_source_doi', 'sample_1_label', 'sample_2_label', 'metric_type', 'value')
+    required_columns = (
+        'study_doi',
+        'study_title',
+        'group_a_name',
+        'group_b_name',
+        'comparison_label',
+        'metric',
+        'value',
+        'source',
+    )
     missing_columns = [column for column in required_columns if column not in fieldnames]
     if missing_columns:
         return _missing_columns_preview(
@@ -862,14 +964,7 @@ def _build_beta_metric_preview(*, file_name, fieldnames, rows, batch_name, impor
             missing_columns=missing_columns,
         )
 
-    existing_keys = set(
-        BetaMetric.objects.filter(sample_a__study__source_doi__isnull=False).values_list(
-            'sample_a__study__source_doi',
-            'sample_a__label',
-            'sample_b__label',
-            'metric_type',
-        )
-    )
+    existing_keys = set(BetaMetric.objects.values_list('comparison_id', 'metric', 'source'))
     seen_keys = set()
     valid_rows = []
     errors = []
@@ -877,17 +972,21 @@ def _build_beta_metric_preview(*, file_name, fieldnames, rows, batch_name, impor
 
     for row_number, raw_row in enumerate(rows, start=2):
         row = _cleaned_row(raw_row)
-        if not row['study_source_doi'] or not row['sample_1_label'] or not row['sample_2_label'] or not row['metric_type']:
-            errors.append({'row_number': row_number, 'message': 'study_source_doi, sample_1_label, sample_2_label, and metric_type are required.'})
+        if not _row_requires_study_reference(row, errors, row_number):
+            continue
+        if not row['group_a_name'] or not row['group_b_name'] or not row['comparison_label'] or not row['metric'] or not row['source']:
+            errors.append({'row_number': row_number, 'message': 'Comparison reference, metric, and source are required.'})
             continue
 
-        sample_1 = _resolve_sample(row['study_source_doi'], row['sample_1_label'])
-        sample_2 = _resolve_sample(row['study_source_doi'], row['sample_2_label'])
-        if not sample_1 or not sample_2:
-            errors.append({'row_number': row_number, 'message': 'Both study/sample lookups must resolve to existing Sample rows.'})
-            continue
-        if sample_1.pk == sample_2.pk:
-            errors.append({'row_number': row_number, 'message': 'BetaMetric self-pairs are not allowed.'})
+        comparison = _resolve_comparison(
+            row['study_doi'],
+            row['study_title'],
+            row['group_a_name'],
+            row['group_b_name'],
+            row['comparison_label'],
+        )
+        if not comparison:
+            errors.append({'row_number': row_number, 'message': 'Comparison reference does not resolve to an existing Comparison.'})
             continue
 
         value, value_error = _parse_float(row.get('value', ''), 'value')
@@ -895,34 +994,27 @@ def _build_beta_metric_preview(*, file_name, fieldnames, rows, batch_name, impor
             errors.append({'row_number': row_number, 'message': value_error})
             continue
 
-        if sample_1.pk > sample_2.pk:
-            sample_1, sample_2 = sample_2, sample_1
-
-        duplicate_key = (
-            row['study_source_doi'],
-            sample_1.label,
-            sample_2.label,
-            row['metric_type'],
-        )
+        duplicate_key = (comparison.pk, row['metric'], row['source'])
         if duplicate_key in seen_keys:
             duplicates.append({'row_number': row_number, 'message': 'Duplicate beta metric row in uploaded file.'})
             continue
         if duplicate_key in existing_keys:
-            duplicates.append({'row_number': row_number, 'message': 'BetaMetric already exists for this canonical sample pair and metric type.'})
+            duplicates.append({'row_number': row_number, 'message': 'BetaMetric already exists for this comparison, metric, and source.'})
             continue
         seen_keys.add(duplicate_key)
 
         valid_rows.append(
             {
                 'row_number': row_number,
-                'sample_a_id': sample_1.pk,
-                'sample_b_id': sample_2.pk,
-                'study_source_doi': row['study_source_doi'],
-                'sample_1_label': sample_1.label,
-                'sample_2_label': sample_2.label,
-                'metric_type': row['metric_type'],
+                'comparison_id': comparison.pk,
+                'study_doi': row['study_doi'],
+                'study_title': row['study_title'],
+                'group_a_name': row['group_a_name'],
+                'group_b_name': row['group_b_name'],
+                'comparison_label': row['comparison_label'],
+                'metric': row['metric'],
                 'value': value,
-                'unit': row.get('unit', ''),
+                'source': row['source'],
                 'notes': row.get('notes', ''),
             }
         )
@@ -939,76 +1031,50 @@ def _build_beta_metric_preview(*, file_name, fieldnames, rows, batch_name, impor
 
 
 def _run_organism_import(valid_rows, batch):
-    created_organisms = []
-    taxonomy_to_row = {row['ncbi_taxonomy_id']: row for row in valid_rows}
     for row in valid_rows:
-        created_organisms.append(
-            Organism.objects.create(
-                ncbi_taxonomy_id=row['ncbi_taxonomy_id'],
-                scientific_name=row['scientific_name'],
-                taxonomic_rank=row['taxonomic_rank'],
-                genus=row.get('genus', ''),
-                species=row.get('species', ''),
-                notes=row.get('notes', ''),
-            )
+        Organism.objects.create(
+            ncbi_taxonomy_id=row['ncbi_taxonomy_id'],
+            scientific_name=row['scientific_name'],
+            rank=row['rank'],
+            notes=row['notes'],
         )
-
-    # Parent organisms may appear later in the same CSV, so parent links are
-    # resolved after the first pass creates all referenced rows.
-    created_by_taxonomy = {organism.ncbi_taxonomy_id: organism for organism in created_organisms}
-    parent_updates = []
-    for organism in created_organisms:
-        parent_taxonomy_id = taxonomy_to_row[organism.ncbi_taxonomy_id].get('parent_ncbi_taxonomy_id')
-        if not parent_taxonomy_id:
-            continue
-        parent = created_by_taxonomy.get(parent_taxonomy_id) or Organism.objects.filter(
-            ncbi_taxonomy_id=parent_taxonomy_id
-        ).first()
-        if parent:
-            organism.parent_taxonomy = parent
-            parent_updates.append(organism)
-    if parent_updates:
-        Organism.objects.bulk_update(parent_updates, ['parent_taxonomy'])
-    return len(created_organisms)
+    return len(valid_rows)
 
 
 def _run_study_import(valid_rows, batch):
     for row in valid_rows:
         Study.objects.create(
-            source_doi=row['source_doi'],
+            doi=row['doi'],
             title=row['title'],
             country=row['country'],
             journal=row['journal'],
-            publication_year=row['publication_year'],
+            year=row['year'],
             notes=row['notes'],
         )
     return len(valid_rows)
 
 
-def _run_sample_import(valid_rows, batch):
+def _run_group_import(valid_rows, batch):
     for row in valid_rows:
-        Sample.objects.create(
+        Group.objects.create(
             study_id=row['study_id'],
-            label=row['label'],
-            site=row['site'],
-            method=row['method'],
-            cohort=row['cohort'],
+            name=row['name'],
+            condition=row['condition'],
             sample_size=row['sample_size'],
+            cohort=row['cohort'],
+            site=row['site'],
             notes=row['notes'],
         )
     return len(valid_rows)
 
 
-def _run_core_metadata_import(valid_rows, batch):
+def _run_comparison_import(valid_rows, batch):
     for row in valid_rows:
-        CoreMetadata.objects.create(
-            sample_id=row['sample_id'],
-            condition=row['condition'],
-            male_percent=row['male_percent'],
-            age_mean=row['age_mean'],
-            age_sd=row['age_sd'],
-            bmi_mean=row['bmi_mean'],
-            bmi_sd=row['bmi_sd'],
+        Comparison.objects.create(
+            study_id=row['study_id'],
+            group_a_id=row['group_a_id'],
+            group_b_id=row['group_b_id'],
+            label=row['label'],
             notes=row['notes'],
         )
     return len(valid_rows)
@@ -1019,12 +1085,8 @@ def _run_metadata_variable_import(valid_rows, batch):
         MetadataVariable.objects.create(
             name=row['name'],
             display_name=row['display_name'],
-            domain=row['domain'],
             value_type=row['value_type'],
-            default_unit=row['default_unit'],
-            description=row['description'],
             is_filterable=row['is_filterable'],
-            allowed_values=row['allowed_values'],
         )
     return len(valid_rows)
 
@@ -1032,34 +1094,38 @@ def _run_metadata_variable_import(valid_rows, batch):
 def _run_metadata_value_import(valid_rows, batch):
     for row in valid_rows:
         MetadataValue.objects.create(
-            sample_id=row['sample_id'],
+            group_id=row['group_id'],
             variable_id=row['variable_id'],
             value_float=row['value_float'],
             value_int=row['value_int'],
             value_text=row['value_text'],
             value_bool=row['value_bool'],
-            unit=row['unit'],
-            raw_value=row['raw_value'],
-            variation=row['variation'],
+        )
+    return len(valid_rows)
+
+
+def _run_qualitative_finding_import(valid_rows, batch):
+    for row in valid_rows:
+        QualitativeFinding.objects.create(
+            comparison_id=row['comparison_id'],
+            organism_id=row['organism_id'],
+            direction=row['direction'],
+            source=row['source'],
             notes=row['notes'],
             import_batch=batch,
         )
     return len(valid_rows)
 
 
-def _run_relative_association_import(valid_rows, batch):
+def _run_quantitative_finding_import(valid_rows, batch):
     for row in valid_rows:
-        RelativeAssociation.objects.create(
-            sample_id=row['sample_id'],
-            organism_1_id=row['organism_1_id'],
-            organism_2_id=row['organism_2_id'],
-            association_type=row['association_type'],
+        QuantitativeFinding.objects.create(
+            group_id=row['group_id'],
+            organism_id=row['organism_id'],
+            value_type=row['value_type'],
             value=row['value'],
-            sign=row['sign'],
-            p_value=row['p_value'],
-            q_value=row['q_value'],
-            method=row['method'],
-            confidence=row['confidence'],
+            unit=row['unit'],
+            source=row['source'],
             notes=row['notes'],
             import_batch=batch,
         )
@@ -1069,10 +1135,10 @@ def _run_relative_association_import(valid_rows, batch):
 def _run_alpha_metric_import(valid_rows, batch):
     for row in valid_rows:
         AlphaMetric.objects.create(
-            sample_id=row['sample_id'],
-            metric_type=row['metric_type'],
+            group_id=row['group_id'],
+            metric=row['metric'],
             value=row['value'],
-            unit=row['unit'],
+            source=row['source'],
             notes=row['notes'],
             import_batch=batch,
         )
@@ -1082,11 +1148,10 @@ def _run_alpha_metric_import(valid_rows, batch):
 def _run_beta_metric_import(valid_rows, batch):
     for row in valid_rows:
         BetaMetric.objects.create(
-            sample_a_id=row['sample_a_id'],
-            sample_b_id=row['sample_b_id'],
-            metric_type=row['metric_type'],
+            comparison_id=row['comparison_id'],
+            metric=row['metric'],
             value=row['value'],
-            unit=row['unit'],
+            source=row['source'],
             notes=row['notes'],
             import_batch=batch,
         )
@@ -1096,25 +1161,25 @@ def _run_beta_metric_import(valid_rows, batch):
 PREVIEW_BUILDERS = {
     'organism': _build_organism_preview,
     'study': _build_study_preview,
-    'sample': _build_sample_preview,
-    'core_metadata': _build_core_metadata_preview,
+    'group': _build_group_preview,
+    'comparison': _build_comparison_preview,
     'metadata_variable': _build_metadata_variable_preview,
     'metadata_value': _build_metadata_value_preview,
-    'relative_association': _build_relative_association_preview,
+    'qualitative_finding': _build_qualitative_finding_preview,
+    'quantitative_finding': _build_quantitative_finding_preview,
     'alpha_metric': _build_alpha_metric_preview,
     'beta_metric': _build_beta_metric_preview,
 }
 
-# These registries are the extension points for new import types: add both a
-# preview builder and an import runner to keep validation and writes aligned.
 IMPORT_RUNNERS = {
     'organism': _run_organism_import,
     'study': _run_study_import,
-    'sample': _run_sample_import,
-    'core_metadata': _run_core_metadata_import,
+    'group': _run_group_import,
+    'comparison': _run_comparison_import,
     'metadata_variable': _run_metadata_variable_import,
     'metadata_value': _run_metadata_value_import,
-    'relative_association': _run_relative_association_import,
+    'qualitative_finding': _run_qualitative_finding_import,
+    'quantitative_finding': _run_quantitative_finding_import,
     'alpha_metric': _run_alpha_metric_import,
     'beta_metric': _run_beta_metric_import,
 }

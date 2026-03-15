@@ -52,7 +52,7 @@ Do not introduce unnecessary infrastructure, background workers, microservices, 
 
 ---
 
-Current implementation priority: project startup, define Django models and migrations from `docs/schema.md`, then register them in Django admin.
+Current implementation priority: build the staged workbook import pipeline described in `docs/import_pipeline.md`, starting with workbook read, parsing, paper status filtering, and organism resolution preview.
 
 ---
 

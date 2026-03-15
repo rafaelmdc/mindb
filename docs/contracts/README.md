@@ -1,47 +1,18 @@
 # CSV Import Contracts
 
-This directory defines the expected CSV structure for admin-only import workflows.
+This directory defines the expected CSV shapes for the admin-only import workflow.
 
-These contracts are intentionally model-specific:
+Supported contracts:
 
-- one CSV shape per import type
-- explicit required and optional columns
-- explicit lookup fields for related records
-- duplicate and validation rules defined per model
+- `organism_csv.md`
+- `study_csv.md`
+- `group_csv.md`
+- `comparison_csv.md`
+- `metadata_variable_csv.md`
+- `metadata_value_csv.md`
+- `qualitative_finding_csv.md`
+- `quantitative_finding_csv.md`
+- `alpha_metric_csv.md`
+- `beta_metric_csv.md`
 
-Documented contracts in this directory:
-
-- `Organism`
-- `Study`
-- `Sample`
-- `CoreMetadata`
-- `MetadataVariable`
-- `MetadataValue`
-- `RelativeAssociation`
-- `AlphaMetric`
-- `BetaMetric`
-
-Design rules:
-
-- prefer stable lookup fields over internal database IDs
-- preserve schema constraints from `docs/schema.md`
-- keep imports create-only unless update behavior is explicitly added later
-- validate and preview before writing any records
-
-Implementation status:
-
-- imports for the implemented schema models are supported in code:
-- `Organism`
-- `Study`
-- `Sample`
-- `CoreMetadata`
-- `MetadataVariable`
-- `MetadataValue`
-- `RelativeAssociation`
-- `AlphaMetric`
-- `BetaMetric`
-
-Related docs:
-
-- `docs/schema.md`
-- `docs/roadmap.md`
+All imports are create-only and validated before write.

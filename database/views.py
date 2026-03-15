@@ -1,7 +1,14 @@
 from django.db.models import Q
 from django.views.generic import DetailView, ListView, TemplateView
 
-from .models import Organism, RelativeAssociation, Sample, Study
+from .models import (
+    Comparison,
+    Group,
+    Organism,
+    QualitativeFinding,
+    QuantitativeFinding,
+    Study,
+)
 
 
 class BrowserListView(ListView):
@@ -58,14 +65,20 @@ class BrowserHomeView(TemplateView):
             {
                 'title': 'Studies',
                 'count': Study.objects.count(),
-                'description': 'Browse curated studies and their sampling context.',
+                'description': 'Browse paper-level records and linked groups.',
                 'url_name': 'database:study-list',
             },
             {
-                'title': 'Samples',
-                'count': Sample.objects.count(),
-                'description': 'Inspect cohorts, methods, and attached metadata.',
-                'url_name': 'database:sample-list',
+                'title': 'Groups',
+                'count': Group.objects.count(),
+                'description': 'Inspect study arms, cohorts, conditions, and metadata.',
+                'url_name': 'database:group-list',
+            },
+            {
+                'title': 'Comparisons',
+                'count': Comparison.objects.count(),
+                'description': 'Review directional study comparisons between groups.',
+                'url_name': 'database:comparison-list',
             },
             {
                 'title': 'Organisms',
@@ -74,10 +87,16 @@ class BrowserHomeView(TemplateView):
                 'url_name': 'database:organism-list',
             },
             {
-                'title': 'Relative Associations',
-                'count': RelativeAssociation.objects.count(),
-                'description': 'Explore pairwise organism associations across samples.',
-                'url_name': 'database:relativeassociation-list',
+                'title': 'Qualitative Findings',
+                'count': QualitativeFinding.objects.count(),
+                'description': 'Explore enriched and depleted taxa by comparison.',
+                'url_name': 'database:qualitativefinding-list',
+            },
+            {
+                'title': 'Quantitative Findings',
+                'count': QuantitativeFinding.objects.count(),
+                'description': 'Inspect per-group abundance values for individual taxa.',
+                'url_name': 'database:quantitativefinding-list',
             },
         ]
         return context
@@ -87,12 +106,12 @@ class StudyListView(BrowserListView):
     model = Study
     template_name = 'database/study_list.html'
     context_object_name = 'studies'
-    search_fields = ('title', 'source_doi', 'country', 'journal')
+    search_fields = ('title', 'doi', 'country', 'journal')
     ordering_map = {
         'title': ('title',),
         '-title': ('-title',),
-        'publication_year': ('publication_year', 'title'),
-        '-publication_year': ('-publication_year', 'title'),
+        'year': ('year', 'title'),
+        '-year': ('-year', 'title'),
         'created_at': ('created_at',),
         '-created_at': ('-created_at',),
     }
@@ -100,22 +119,20 @@ class StudyListView(BrowserListView):
 
     def apply_filters(self, queryset):
         country = self.request.GET.get('country', '').strip()
-        publication_year = self.request.GET.get('publication_year', '').strip()
+        year = self.request.GET.get('year', '').strip()
         if country:
             queryset = queryset.filter(country__icontains=country)
-        if publication_year:
-            queryset = queryset.filter(publication_year=publication_year)
+        if year:
+            queryset = queryset.filter(year=year)
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['current_country'] = self.request.GET.get('country', '').strip()
-        context['current_publication_year'] = self.request.GET.get('publication_year', '').strip()
-        context['publication_years'] = [
+        context['current_year'] = self.request.GET.get('year', '').strip()
+        context['years'] = [
             value
-            for value in Study.objects.order_by('-publication_year')
-            .values_list('publication_year', flat=True)
-            .distinct()
+            for value in Study.objects.order_by('-year').values_list('year', flat=True).distinct()
             if value is not None
         ]
         return context
@@ -127,55 +144,121 @@ class StudyDetailView(DetailView):
     context_object_name = 'study'
 
     def get_queryset(self):
-        return Study.objects.prefetch_related('samples')
+        return Study.objects.prefetch_related('groups', 'comparisons__group_a', 'comparisons__group_b')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        study = self.object
+        context['qualitative_count'] = QualitativeFinding.objects.filter(comparison__study=study).count()
+        context['quantitative_count'] = QuantitativeFinding.objects.filter(group__study=study).count()
+        return context
 
 
-class SampleListView(BrowserListView):
-    model = Sample
-    template_name = 'database/sample_list.html'
-    context_object_name = 'samples'
-    search_fields = ('label', 'site', 'method', 'cohort', 'study__title')
+class GroupListView(BrowserListView):
+    model = Group
+    template_name = 'database/group_list.html'
+    context_object_name = 'groups'
+    search_fields = ('name', 'condition', 'cohort', 'site', 'study__title')
     ordering_map = {
-        'label': ('label',),
-        '-label': ('-label',),
-        'study': ('study__title', 'label'),
-        '-study': ('-study__title', 'label'),
-        'sample_size': ('sample_size', 'label'),
-        '-sample_size': ('-sample_size', 'label'),
+        'name': ('name',),
+        '-name': ('-name',),
+        'study': ('study__title', 'name'),
+        '-study': ('-study__title', 'name'),
+        'sample_size': ('sample_size', 'name'),
+        '-sample_size': ('-sample_size', 'name'),
         'created_at': ('created_at',),
         '-created_at': ('-created_at',),
     }
-    default_ordering = ('study__title', 'label')
+    default_ordering = ('study__title', 'name')
 
     def get_queryset(self):
         return super().get_queryset().select_related('study')
 
     def apply_filters(self, queryset):
         study_id = self.request.GET.get('study', '').strip()
-        site = self.request.GET.get('site', '').strip()
+        condition = self.request.GET.get('condition', '').strip()
         if study_id:
             queryset = queryset.filter(study_id=study_id)
-        if site:
-            queryset = queryset.filter(site__icontains=site)
+        if condition:
+            queryset = queryset.filter(condition__icontains=condition)
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['current_study'] = self.request.GET.get('study', '').strip()
-        context['current_site'] = self.request.GET.get('site', '').strip()
+        context['current_condition'] = self.request.GET.get('condition', '').strip()
         context['studies'] = Study.objects.order_by('title')
         return context
 
 
-class SampleDetailView(DetailView):
-    model = Sample
-    template_name = 'database/sample_detail.html'
-    context_object_name = 'sample'
+class GroupDetailView(DetailView):
+    model = Group
+    template_name = 'database/group_detail.html'
+    context_object_name = 'group'
 
     def get_queryset(self):
         return (
-            Sample.objects.select_related('study', 'core_metadata')
-            .prefetch_related('metadata_values__variable', 'relative_associations__organism_1', 'relative_associations__organism_2')
+            Group.objects.select_related('study')
+            .prefetch_related(
+                'metadata_values__variable',
+                'quantitative_findings__organism',
+                'alpha_metrics',
+                'comparisons_as_a__group_b',
+                'comparisons_as_b__group_a',
+            )
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        group = self.object
+        context['comparisons'] = (
+            Comparison.objects.filter(Q(group_a=group) | Q(group_b=group))
+            .select_related('group_a', 'group_b', 'study')
+            .order_by('label')
+        )
+        return context
+
+
+class ComparisonListView(BrowserListView):
+    model = Comparison
+    template_name = 'database/comparison_list.html'
+    context_object_name = 'comparisons'
+    search_fields = ('label', 'study__title', 'group_a__name', 'group_b__name')
+    ordering_map = {
+        'label': ('label',),
+        '-label': ('-label',),
+        'study': ('study__title', 'label'),
+        '-study': ('-study__title', 'label'),
+        'created_at': ('created_at',),
+        '-created_at': ('-created_at',),
+    }
+    default_ordering = ('study__title', 'label')
+
+    def get_queryset(self):
+        return super().get_queryset().select_related('study', 'group_a', 'group_b')
+
+    def apply_filters(self, queryset):
+        study_id = self.request.GET.get('study', '').strip()
+        if study_id:
+            queryset = queryset.filter(study_id=study_id)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['current_study'] = self.request.GET.get('study', '').strip()
+        context['studies'] = Study.objects.order_by('title')
+        return context
+
+
+class ComparisonDetailView(DetailView):
+    model = Comparison
+    template_name = 'database/comparison_detail.html'
+    context_object_name = 'comparison'
+
+    def get_queryset(self):
+        return (
+            Comparison.objects.select_related('study', 'group_a', 'group_b')
+            .prefetch_related('qualitative_findings__organism', 'beta_metrics')
         )
 
 
@@ -183,31 +266,27 @@ class OrganismListView(BrowserListView):
     model = Organism
     template_name = 'database/organism_list.html'
     context_object_name = 'organisms'
-    search_fields = ('scientific_name', 'genus', 'species', 'ncbi_taxonomy_id')
+    search_fields = ('scientific_name', 'rank')
     ordering_map = {
         'scientific_name': ('scientific_name',),
         '-scientific_name': ('-scientific_name',),
         'ncbi_taxonomy_id': ('ncbi_taxonomy_id',),
         '-ncbi_taxonomy_id': ('-ncbi_taxonomy_id',),
-        'taxonomic_rank': ('taxonomic_rank', 'scientific_name'),
-        '-taxonomic_rank': ('-taxonomic_rank', 'scientific_name'),
+        'rank': ('rank', 'scientific_name'),
+        '-rank': ('-rank', 'scientific_name'),
     }
     default_ordering = ('scientific_name',)
 
     def apply_filters(self, queryset):
-        taxonomic_rank = self.request.GET.get('taxonomic_rank', '').strip()
-        if taxonomic_rank:
-            queryset = queryset.filter(taxonomic_rank=taxonomic_rank)
+        rank = self.request.GET.get('rank', '').strip()
+        if rank:
+            queryset = queryset.filter(rank=rank)
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['current_taxonomic_rank'] = self.request.GET.get('taxonomic_rank', '').strip()
-        context['taxonomic_ranks'] = (
-            Organism.objects.order_by('taxonomic_rank')
-            .values_list('taxonomic_rank', flat=True)
-            .distinct()
-        )
+        context['current_rank'] = self.request.GET.get('rank', '').strip()
+        context['ranks'] = Organism.objects.order_by('rank').values_list('rank', flat=True).distinct()
         return context
 
 
@@ -219,79 +298,142 @@ class OrganismDetailView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         organism = self.object
-        context['association_count'] = (
-            RelativeAssociation.objects.filter(Q(organism_1=organism) | Q(organism_2=organism)).count()
+        qualitative = QualitativeFinding.objects.filter(organism=organism).select_related(
+            'comparison__study',
+            'comparison__group_a',
+            'comparison__group_b',
         )
-        context['child_organisms'] = organism.children.order_by('scientific_name')
+        quantitative = QuantitativeFinding.objects.filter(organism=organism).select_related('group__study')
+        study_ids = {
+            finding.comparison.study_id
+            for finding in qualitative
+        } | {
+            finding.group.study_id
+            for finding in quantitative
+        }
+        context['qualitative_count'] = qualitative.count()
+        context['quantitative_count'] = quantitative.count()
+        context['study_count'] = len(study_ids)
+        context['recent_qualitative_findings'] = qualitative.order_by('comparison__label', 'direction')[:10]
+        context['recent_quantitative_findings'] = quantitative.order_by('group__name', 'value_type')[:10]
         return context
 
 
-class RelativeAssociationListView(BrowserListView):
-    model = RelativeAssociation
-    template_name = 'database/relativeassociation_list.html'
-    context_object_name = 'associations'
+class QualitativeFindingListView(BrowserListView):
+    model = QualitativeFinding
+    template_name = 'database/qualitativefinding_list.html'
+    context_object_name = 'findings'
     search_fields = (
-        'association_type',
-        'method',
-        'sample__label',
-        'sample__study__title',
-        'organism_1__scientific_name',
-        'organism_2__scientific_name',
+        'comparison__label',
+        'comparison__study__title',
+        'comparison__group_a__name',
+        'comparison__group_b__name',
+        'organism__scientific_name',
+        'source',
     )
     ordering_map = {
-        'sample': ('sample__study__title', 'sample__label'),
-        '-sample': ('-sample__study__title', 'sample__label'),
-        'value': ('value', 'sample__label'),
-        '-value': ('-value', 'sample__label'),
-        'p_value': ('p_value', 'sample__label'),
-        '-p_value': ('-p_value', 'sample__label'),
-        'confidence': ('confidence', 'sample__label'),
-        '-confidence': ('-confidence', 'sample__label'),
+        'comparison': ('comparison__label', 'organism__scientific_name'),
+        '-comparison': ('-comparison__label', 'organism__scientific_name'),
+        'direction': ('direction', 'organism__scientific_name'),
+        '-direction': ('-direction', 'organism__scientific_name'),
+        'organism': ('organism__scientific_name',),
+        '-organism': ('-organism__scientific_name',),
         'created_at': ('created_at',),
         '-created_at': ('-created_at',),
     }
-    default_ordering = ('sample__study__title', 'sample__label', 'organism_1__scientific_name')
+    default_ordering = ('comparison__study__title', 'comparison__label', 'organism__scientific_name')
 
     def get_queryset(self):
         return super().get_queryset().select_related(
-            'sample',
-            'sample__study',
-            'organism_1',
-            'organism_2',
+            'comparison',
+            'comparison__study',
+            'comparison__group_a',
+            'comparison__group_b',
+            'organism',
+            'import_batch',
         )
 
     def apply_filters(self, queryset):
         study_id = self.request.GET.get('study', '').strip()
-        sign = self.request.GET.get('sign', '').strip()
-        association_type = self.request.GET.get('association_type', '').strip()
+        direction = self.request.GET.get('direction', '').strip()
         if study_id:
-            queryset = queryset.filter(sample__study_id=study_id)
-        if sign:
-            queryset = queryset.filter(sign=sign)
-        if association_type:
-            queryset = queryset.filter(association_type__icontains=association_type)
+            queryset = queryset.filter(comparison__study_id=study_id)
+        if direction:
+            queryset = queryset.filter(direction=direction)
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['current_study'] = self.request.GET.get('study', '').strip()
-        context['current_sign'] = self.request.GET.get('sign', '').strip()
-        context['current_association_type'] = self.request.GET.get('association_type', '').strip()
+        context['current_direction'] = self.request.GET.get('direction', '').strip()
         context['studies'] = Study.objects.order_by('title')
-        context['sign_choices'] = RelativeAssociation.Sign.choices
+        context['direction_choices'] = QualitativeFinding.Direction.choices
         return context
 
 
-class RelativeAssociationDetailView(DetailView):
-    model = RelativeAssociation
-    template_name = 'database/relativeassociation_detail.html'
-    context_object_name = 'association'
+class QualitativeFindingDetailView(DetailView):
+    model = QualitativeFinding
+    template_name = 'database/qualitativefinding_detail.html'
+    context_object_name = 'finding'
 
     def get_queryset(self):
-        return RelativeAssociation.objects.select_related(
-            'sample',
-            'sample__study',
-            'organism_1',
-            'organism_2',
+        return QualitativeFinding.objects.select_related(
+            'comparison',
+            'comparison__study',
+            'comparison__group_a',
+            'comparison__group_b',
+            'organism',
             'import_batch',
         )
+
+
+class QuantitativeFindingListView(BrowserListView):
+    model = QuantitativeFinding
+    template_name = 'database/quantitativefinding_list.html'
+    context_object_name = 'findings'
+    search_fields = (
+        'group__name',
+        'group__study__title',
+        'organism__scientific_name',
+        'source',
+    )
+    ordering_map = {
+        'group': ('group__name', 'organism__scientific_name'),
+        '-group': ('-group__name', 'organism__scientific_name'),
+        'organism': ('organism__scientific_name',),
+        '-organism': ('-organism__scientific_name',),
+        'value': ('value', 'organism__scientific_name'),
+        '-value': ('-value', 'organism__scientific_name'),
+        'created_at': ('created_at',),
+        '-created_at': ('-created_at',),
+    }
+    default_ordering = ('group__study__title', 'group__name', 'organism__scientific_name')
+
+    def get_queryset(self):
+        return super().get_queryset().select_related('group', 'group__study', 'organism', 'import_batch')
+
+    def apply_filters(self, queryset):
+        study_id = self.request.GET.get('study', '').strip()
+        value_type = self.request.GET.get('value_type', '').strip()
+        if study_id:
+            queryset = queryset.filter(group__study_id=study_id)
+        if value_type:
+            queryset = queryset.filter(value_type=value_type)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['current_study'] = self.request.GET.get('study', '').strip()
+        context['current_value_type'] = self.request.GET.get('value_type', '').strip()
+        context['studies'] = Study.objects.order_by('title')
+        context['value_type_choices'] = QuantitativeFinding.ValueType.choices
+        return context
+
+
+class QuantitativeFindingDetailView(DetailView):
+    model = QuantitativeFinding
+    template_name = 'database/quantitativefinding_detail.html'
+    context_object_name = 'finding'
+
+    def get_queryset(self):
+        return QuantitativeFinding.objects.select_related('group', 'group__study', 'organism', 'import_batch')

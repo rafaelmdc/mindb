@@ -2,365 +2,219 @@
 
 ## Overview
 
-This project stores curated microbiome association data using a Django/PostgreSQL schema designed for:
+This project stores curated microbiome literature data using a compact Django/PostgreSQL schema designed for:
 
-- publication-level study records
-- analyzable sample/cohort/group records
-- organism/taxon records
-- pairwise organism-organism relationships
-- structured core metadata
-- flexible metadata through a controlled EAV model
+- paper-level study records
+- analyzable study groups or cohorts
+- explicit group-to-group comparisons
+- qualitative taxon findings
+- quantitative per-group taxon values
+- lightweight metadata through a slim EAV layer
 - provenance-aware CSV imports
-
-The schema is intentionally hybrid:
-
-- frequently queried fields are stored in structured tables
-- heterogeneous metadata is stored in a controlled EAV system
-
----
-
-## Core design principles
-
-- `Study` represents the publication or source paper.
-- `Sample` represents a subgroup/cohort/unit extracted from a study.
-- `Organism` represents a microbial taxon.
-- `RelativeAssociation` stores a pairwise organism-organism relationship within a sample/group.
-- `CoreMetadata` stores common structured metadata fields.
-- `MetadataVariable` and `MetadataValue` store flexible sample metadata.
-- `ImportBatch` tracks import provenance and ingestion status.
-- `AlphaMetric` and `BetaMetric` are optional and can be added later.
-
----
 
 ## Main models
 
 ### Study
 
-Stores publication-level information.
+Publication-level record.
 
 Fields:
 
-- `id`
-- `source_doi`
+- `doi`
 - `title`
-- `country`
 - `journal`
-- `publication_year`
+- `year`
+- `country`
 - `notes`
 - `created_at`
 - `updated_at`
 
 Rules:
 
-- `source_doi` should be unique when present
+- `doi` is unique when present
 
----
+### Group
 
-### Sample
-
-Stores the analyzable study unit.
-
-This may represent:
-
-- a cohort
-- a subgroup
-- a site-specific subset
-- a methodological subgroup
-- another meaningful extracted analytical unit
+Study arm, cohort, subgroup, or other extracted analytical unit.
 
 Fields:
 
-- `id`
-- `study_id`
-- `label`
-- `site`
-- `method`
-- `cohort`
+- `study`
+- `name`
+- `condition`
 - `sample_size`
+- `cohort`
+- `site`
 - `notes`
 - `created_at`
 - `updated_at`
 
 Rules:
 
-- unique constraint on `(study_id, label)`
+- unique `(study, name)`
 
----
+### Comparison
+
+Directional comparison between two groups.
+
+Fields:
+
+- `study`
+- `group_a`
+- `group_b`
+- `label`
+- `notes`
+- `created_at`
+- `updated_at`
+
+Rules:
+
+- `group_a != group_b`
+- unique `(study, group_a, group_b, label)`
+- both groups must belong to the selected study
 
 ### Organism
 
-Stores taxon information.
+Taxon record.
 
 Fields:
 
-- `id`
-- `ncbi_taxonomy_id`
 - `scientific_name`
-- `taxonomic_rank`
-- `parent_taxonomy_id` optional self-reference
-- `genus`
-- `species`
+- `rank`
+- `ncbi_taxonomy_id`
 - `notes`
-
-Rules:
-
-- `ncbi_taxonomy_id` should be unique and indexed
-- use a normal internal Django `id` primary key rather than making taxonomy ID the PK
-
----
-
-### RelativeAssociation
-
-Stores a pairwise relationship between two organisms in a given sample/group.
-
-Fields:
-
-- `id`
-- `sample_id`
-- `organism_1_id`
-- `organism_2_id`
-- `association_type`
-- `value`
-- `sign`
-- `p_value`
-- `q_value`
-- `method`
-- `confidence`
-- `notes`
-- `import_batch_id`
 - `created_at`
 - `updated_at`
 
 Rules:
 
-- canonical organism ordering should be enforced
-- unique constraint on `(sample_id, organism_1_id, organism_2_id, association_type)`
-- `organism_1_id != organism_2_id`
+- `ncbi_taxonomy_id` is unique when present
 
-Notes:
+### QualitativeFinding
 
-This table is the main source for browser exploration and graph generation.
-
----
-
-### CoreMetadata
-
-Stores structured sample-level metadata that is expected to be queried frequently.
+Directional finding for one organism in one comparison.
 
 Fields:
 
-- `sample_id` one-to-one with `Sample`
-- `condition`
-- `male_percent`
-- `age_mean`
-- `age_sd`
-- `bmi_mean`
-- `bmi_sd`
+- `comparison`
+- `organism`
+- `direction`
+- `source`
+- `import_batch`
 - `notes`
+- `created_at`
+- `updated_at`
 
 Rules:
 
-- keep only commonly queried fields here
-- do not use this table as a dumping ground for all metadata
+- unique `(comparison, organism, direction, source)`
 
----
+### QuantitativeFinding
+
+Numeric value for one organism in one group.
+
+Fields:
+
+- `group`
+- `organism`
+- `value_type`
+- `value`
+- `unit`
+- `source`
+- `import_batch`
+- `notes`
+- `created_at`
+- `updated_at`
+
+Rules:
+
+- unique `(group, organism, value_type, source)`
 
 ### MetadataVariable
 
-Defines controlled metadata variables for the EAV system.
+Slim metadata descriptor.
 
 Fields:
 
-- `id`
 - `name`
-- `display_name`
-- `domain`
 - `value_type`
-- `default_unit`
-- `description`
+- `display_name`
 - `is_filterable`
-- `allowed_values`
 - `created_at`
 - `updated_at`
 
-Notes:
-
-This table controls metadata consistency.
-
----
-
 ### MetadataValue
 
-Stores flexible sample-level metadata values.
+Slim metadata value linked to `Group`.
 
 Fields:
 
-- `id`
-- `sample_id`
-- `variable_id`
+- `group`
+- `variable`
+- `value_text`
 - `value_float`
 - `value_int`
-- `value_text`
 - `value_bool`
-- `unit`
-- `raw_value`
-- `variation`
-- `notes`
-- `import_batch_id`
+- `created_at`
+- `updated_at`
 
 Rules:
 
-- unique constraint on `(sample_id, variable_id)`
-- exactly one typed value field should be populated
-
----
+- unique `(group, variable)`
+- exactly one typed value field may be populated
 
 ### ImportBatch
 
-Tracks import provenance for CSV ingestion.
+Import audit and status record.
 
 Fields:
 
-- `id`
 - `name`
 - `source_file`
 - `import_type`
-- `uploaded_at`
+- `status`
+- `created_at`
 - `notes`
 - `success_count`
 - `error_count`
-- `status`
-
-Purpose:
-
-- auditability
-- validation tracking
-- error reporting
-- import provenance
-
----
 
 ## Optional models
 
 ### AlphaMetric
 
-Stores within-sample/group diversity metrics.
+Metric stored for one group.
 
 Fields:
 
-- `id`
-- `sample_id`
-- `metric_type`
+- `group`
+- `metric`
 - `value`
-- `unit`
+- `source`
+- `import_batch`
 - `notes`
-- `import_batch_id`
-
-Rules:
-
-- unique constraint on `(sample_id, metric_type)`
-
----
+- `created_at`
+- `updated_at`
 
 ### BetaMetric
 
-Stores pairwise between-sample/group diversity metrics.
+Metric stored for one comparison.
 
 Fields:
 
-- `id`
-- `sample_a_id`
-- `sample_b_id`
-- `metric_type`
+- `comparison`
+- `metric`
 - `value`
+- `source`
+- `import_batch`
 - `notes`
-- `import_batch_id`
+- `created_at`
+- `updated_at`
 
-Rules:
+## Removed from the central model
 
-- canonical sample ordering should be enforced
-- unique constraint on `(sample_a_id, sample_b_id, metric_type)`
-- `sample_a_id != sample_b_id`
+The following are no longer part of the core schema:
 
----
-
-## Integrity rules
-
-### Uniqueness
-
-- `Study.source_doi` unique when present
-- `Organism.ncbi_taxonomy_id` unique
-- `Sample(study_id, label)` unique
-- `RelativeAssociation(sample_id, organism_1_id, organism_2_id, association_type)` unique
-- `MetadataValue(sample_id, variable_id)` unique
-- `AlphaMetric(sample_id, metric_type)` unique
-- `BetaMetric(sample_a_id, sample_b_id, metric_type)` unique
-
-### Checks
-
-- `sample_size >= 0`
-- `male_percent` between `0` and `100`
-- `p_value` between `0` and `1`
-- `q_value` between `0` and `1`
-- organism pair members must differ
-- beta pair members must differ
-- only one typed metadata value field should be filled
-
----
-
-## Implementation notes
-
-### Django naming
-Use explicit FK names such as:
-
-- `study_id`
-- `sample_id`
-- `organism_1_id`
-- `organism_2_id`
-
-Avoid ambiguous names like `sample` or duplicate FK labels.
-
-### Network graph
-Use:
-
-- `networkx` on the backend
-- Cytoscape.js on the frontend
-
-Do not rely on raw NetworkX plots for the main web visualization.
-
-Recommended graph pipeline:
-
-1. query filtered associations
-2. build graph with `networkx`
-3. compute graph properties if needed
-4. serialize nodes and edges to JSON
-5. render interactively with Cytoscape.js
-
-### CSV ingestion
-All imported records should be traceable through `ImportBatch`.
-
-CSV import flow should support:
-
-- upload
-- validation
-- preview
-- duplicate checks
-- confirmation
-- result summary
-
----
-
-## Version 1 priority models
-
-For the first usable version, prioritize:
-
-- `Study`
 - `Sample`
-- `Organism`
-- `RelativeAssociation`
 - `CoreMetadata`
-- `MetadataVariable`
-- `MetadataValue`
-- `ImportBatch`
-
-Add `AlphaMetric` and `BetaMetric` later unless they are immediately required.
+- `RelativeAssociation`
+- organism-organism abundance modeling

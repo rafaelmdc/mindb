@@ -37,9 +37,10 @@
               <a class="nav-link" href="{% url 'core:home' %}">Home</a>
               <a class="nav-link" href="{% url 'database:browser-home' %}">Browser</a>
               <a class="nav-link" href="{% url 'database:study-list' %}">Studies</a>
-              <a class="nav-link" href="{% url 'database:sample-list' %}">Samples</a>
+              <a class="nav-link" href="{% url 'database:group-list' %}">Groups</a>
+              <a class="nav-link" href="{% url 'database:comparison-list' %}">Comparisons</a>
               <a class="nav-link" href="{% url 'database:organism-list' %}">Organisms</a>
-              <a class="nav-link" href="{% url 'database:relativeassociation-list' %}">Associations</a>
+              <a class="nav-link" href="{% url 'database:qualitativefinding-list' %}">Qualitative</a>
               <a class="nav-link" href="{% url 'core:graph' %}">Graph</a>
               <a class="nav-link nav-link-admin" href="{% url 'core:staff-home' %}">Staff</a>
             </div>
@@ -56,7 +57,7 @@
 
     <footer class="site-footer">
       <div class="container d-flex flex-column flex-lg-row justify-content-between gap-2">
-        <div>Curated microbiome associations, samples, and metadata.</div>
+        <div>Curated microbiome studies, groups, comparisons, taxa, and findings.</div>
         <div class="text-secondary">Django, PostgreSQL, Bootstrap templates, admin-first workflows.</div>
       </div>
     </footer>

@@ -7,13 +7,13 @@
 <div class="page-intro mb-4">
   <h1 class="mb-2">Database Browser</h1>
   <p class="text-secondary mb-0">
-    Browse curated studies, samples, organisms, and pairwise associations.
+    Browse curated studies, groups, comparisons, taxa, and finding records.
   </p>
 </div>
 
 <div class="row g-4">
   {% for card in cards %}
-    <div class="col-md-6 col-xl-3">
+    <div class="col-md-6 col-xl-4">
       <div class="card h-100 shadow-sm feature-card browser-card">
         <div class="card-body">
           <p class="text-uppercase text-secondary small mb-2">{{ card.title }}</p>

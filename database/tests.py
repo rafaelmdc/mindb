@@ -3,77 +3,70 @@ from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import AlphaMetric, BetaMetric, MetadataValue, MetadataVariable, Organism, RelativeAssociation, Sample, Study
+from .models import Comparison, Group, MetadataValue, MetadataVariable, Organism, QualitativeFinding, QuantitativeFinding, Study
 
 
 class StudyModelTests(TestCase):
-    def test_source_doi_must_be_unique_when_present(self):
-        Study.objects.create(title='Study A', source_doi='10.1000/test')
+    def test_doi_must_be_unique_when_present(self):
+        Study.objects.create(title='Study A', doi='10.1000/test')
 
         with self.assertRaises(IntegrityError):
-            Study.objects.create(title='Study B', source_doi='10.1000/test')
+            Study.objects.create(title='Study B', doi='10.1000/test')
 
 
-class SampleModelTests(TestCase):
-    def test_label_must_be_unique_within_study(self):
+class GroupModelTests(TestCase):
+    def test_name_must_be_unique_within_study(self):
         study = Study.objects.create(title='Study A')
-        Sample.objects.create(study=study, label='Cohort 1')
+        Group.objects.create(study=study, name='Control')
 
         with self.assertRaises(IntegrityError):
-            Sample.objects.create(study=study, label='Cohort 1')
+            Group.objects.create(study=study, name='Control')
 
 
-class RelativeAssociationModelTests(TestCase):
+class ComparisonModelTests(TestCase):
     def setUp(self):
         self.study = Study.objects.create(title='Study A')
-        self.sample = Sample.objects.create(study=self.study, label='Cohort 1')
-        self.organism_a = Organism.objects.create(
-            ncbi_taxonomy_id=100,
-            scientific_name='Organism A',
-            taxonomic_rank='species',
-        )
-        self.organism_b = Organism.objects.create(
-            ncbi_taxonomy_id=200,
-            scientific_name='Organism B',
-            taxonomic_rank='species',
-        )
+        self.group_a = Group.objects.create(study=self.study, name='Case')
+        self.group_b = Group.objects.create(study=self.study, name='Control')
 
-    def test_clean_rejects_self_pairs(self):
-        association = RelativeAssociation(
-            sample=self.sample,
-            organism_1=self.organism_a,
-            organism_2=self.organism_a,
-            association_type='correlation',
+    def test_clean_rejects_identical_groups(self):
+        comparison = Comparison(
+            study=self.study,
+            group_a=self.group_a,
+            group_b=self.group_a,
+            label='Case vs control',
         )
 
         with self.assertRaises(ValidationError):
-            association.full_clean()
+            comparison.full_clean()
 
-    def test_save_enforces_canonical_order(self):
-        association = RelativeAssociation.objects.create(
-            sample=self.sample,
-            organism_1=self.organism_b,
-            organism_2=self.organism_a,
-            association_type='correlation',
+    def test_clean_rejects_groups_from_other_studies(self):
+        other_study = Study.objects.create(title='Study B')
+        other_group = Group.objects.create(study=other_study, name='External')
+        comparison = Comparison(
+            study=self.study,
+            group_a=self.group_a,
+            group_b=other_group,
+            label='Mixed study comparison',
         )
 
-        self.assertEqual(association.organism_1, self.organism_a)
-        self.assertEqual(association.organism_2, self.organism_b)
+        with self.assertRaises(ValidationError):
+            comparison.full_clean()
 
 
 class MetadataValueModelTests(TestCase):
     def setUp(self):
         self.study = Study.objects.create(title='Study A')
-        self.sample = Sample.objects.create(study=self.study, label='Cohort 1')
+        self.group = Group.objects.create(study=self.study, name='Control')
 
     def test_requires_exactly_one_typed_value(self):
         variable = MetadataVariable.objects.create(
-            name='age',
-            display_name='Age',
+            name='age_mean',
+            display_name='Age Mean',
             value_type=MetadataVariable.ValueType.FLOAT,
         )
         metadata_value = MetadataValue(
-            sample=self.sample,
+            group=self.group,
             variable=variable,
             value_float=42.0,
             value_int=42,
@@ -89,7 +82,7 @@ class MetadataValueModelTests(TestCase):
             value_type=MetadataVariable.ValueType.BOOLEAN,
         )
         metadata_value = MetadataValue(
-            sample=self.sample,
+            group=self.group,
             variable=variable,
             value_text='yes',
         )
@@ -98,101 +91,66 @@ class MetadataValueModelTests(TestCase):
             metadata_value.full_clean()
 
 
-class AlphaMetricModelTests(TestCase):
-    def test_metric_type_must_be_unique_per_sample(self):
-        study = Study.objects.create(title='Study A')
-        sample = Sample.objects.create(study=study, label='Cohort 1')
-        AlphaMetric.objects.create(sample=sample, metric_type='shannon', value=3.2)
-
-        with self.assertRaises(IntegrityError):
-            AlphaMetric.objects.create(sample=sample, metric_type='shannon', value=4.1)
-
-
-class BetaMetricModelTests(TestCase):
-    def setUp(self):
-        self.study = Study.objects.create(title='Study A')
-        self.sample_a = Sample.objects.create(study=self.study, label='Cohort 1')
-        self.sample_b = Sample.objects.create(study=self.study, label='Cohort 2')
-
-    def test_clean_rejects_self_pairs(self):
-        metric = BetaMetric(
-            sample_a=self.sample_a,
-            sample_b=self.sample_a,
-            metric_type='bray_curtis',
-            value=0.3,
-        )
-
-        with self.assertRaises(ValidationError):
-            metric.full_clean()
-
-    def test_save_enforces_canonical_order(self):
-        metric = BetaMetric.objects.create(
-            sample_a=self.sample_b,
-            sample_b=self.sample_a,
-            metric_type='bray_curtis',
-            value=0.3,
-        )
-
-        self.assertEqual(metric.sample_a, self.sample_a)
-        self.assertEqual(metric.sample_b, self.sample_b)
-
-
 class BrowserViewTests(TestCase):
     def setUp(self):
         self.study_a = Study.objects.create(
             title='Alpha Study',
-            source_doi='10.1000/alpha',
+            doi='10.1000/alpha',
             country='Portugal',
-            publication_year=2023,
+            year=2023,
         )
         self.study_b = Study.objects.create(
             title='Beta Study',
-            source_doi='10.1000/beta',
+            doi='10.1000/beta',
             country='Spain',
-            publication_year=2024,
+            year=2024,
         )
-        self.sample_a = Sample.objects.create(
+        self.group_a = Group.objects.create(
             study=self.study_a,
-            label='Cohort A',
+            name='Case',
+            condition='Disease',
             site='Gut',
             sample_size=40,
         )
-        self.sample_b = Sample.objects.create(
+        self.group_b = Group.objects.create(
             study=self.study_b,
-            label='Cohort B',
+            name='Control',
+            condition='Healthy',
             site='Oral',
             sample_size=10,
         )
-        self.organism_a = Organism.objects.create(
+        self.comparison = Comparison.objects.create(
+            study=self.study_a,
+            group_a=self.group_a,
+            group_b=Group.objects.create(study=self.study_a, name='Reference'),
+            label='Case vs reference',
+        )
+        self.organism = Organism.objects.create(
             ncbi_taxonomy_id=111,
             scientific_name='Faecalibacterium prausnitzii',
-            taxonomic_rank='species',
-            genus='Faecalibacterium',
-            species='prausnitzii',
+            rank='species',
         )
-        self.organism_b = Organism.objects.create(
-            ncbi_taxonomy_id=222,
-            scientific_name='Bacteroides fragilis',
-            taxonomic_rank='species',
-            genus='Bacteroides',
-            species='fragilis',
+        self.qualitative_finding = QualitativeFinding.objects.create(
+            comparison=self.comparison,
+            organism=self.organism,
+            direction=QualitativeFinding.Direction.ENRICHED,
+            source='Table 2',
         )
-        self.association = RelativeAssociation.objects.create(
-            sample=self.sample_a,
-            organism_1=self.organism_a,
-            organism_2=self.organism_b,
-            association_type='correlation',
-            sign=RelativeAssociation.Sign.POSITIVE,
+        self.quantitative_finding = QuantitativeFinding.objects.create(
+            group=self.group_a,
+            organism=self.organism,
+            value_type=QuantitativeFinding.ValueType.RELATIVE_ABUNDANCE,
             value=0.62,
-            p_value=0.01,
+            source='Table 3',
         )
 
-    def test_browser_home_displays_counts(self):
+    def test_browser_home_displays_new_cards(self):
         response = self.client.get(reverse('database:browser-home'))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Database Browser')
-        self.assertContains(response, 'Relative Associations')
+        self.assertContains(response, 'Groups')
+        self.assertContains(response, 'Qualitative Findings')
 
     def test_study_list_supports_search(self):
         response = self.client.get(reverse('database:study-list'), {'q': 'Alpha'})
@@ -201,54 +159,62 @@ class BrowserViewTests(TestCase):
         self.assertContains(response, 'Alpha Study')
         self.assertNotContains(response, 'Beta Study')
 
-    def test_sample_list_filters_by_study(self):
-        response = self.client.get(reverse('database:sample-list'), {'study': self.study_a.pk})
+    def test_group_list_filters_by_study(self):
+        response = self.client.get(reverse('database:group-list'), {'study': self.study_a.pk})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Cohort A')
-        self.assertNotContains(response, 'Cohort B')
+        self.assertContains(response, 'Case')
+        self.assertNotContains(response, 'Control')
 
     def test_organism_list_filters_by_rank(self):
         genus_organism = Organism.objects.create(
-            ncbi_taxonomy_id=333,
             scientific_name='Bacteroides',
-            taxonomic_rank='genus',
+            rank='genus',
         )
 
         response = self.client.get(
             reverse('database:organism-list'),
-            {'taxonomic_rank': 'species'},
+            {'rank': 'species'},
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Faecalibacterium prausnitzii')
         self.assertNotContains(response, f'/browser/organisms/{genus_organism.pk}/')
 
-    def test_association_list_filters_by_sign(self):
-        RelativeAssociation.objects.create(
-            sample=self.sample_b,
-            organism_1=self.organism_a,
-            organism_2=self.organism_b,
-            association_type='correlation',
-            sign=RelativeAssociation.Sign.NEGATIVE,
-            value=-0.4,
+    def test_qualitative_finding_list_filters_by_direction(self):
+        QualitativeFinding.objects.create(
+            comparison=self.comparison,
+            organism=Organism.objects.create(scientific_name='Roseburia intestinalis', rank='species'),
+            direction=QualitativeFinding.Direction.DEPLETED,
+            source='Supplementary Table S4',
         )
 
         response = self.client.get(
-            reverse('database:relativeassociation-list'),
-            {'sign': RelativeAssociation.Sign.POSITIVE},
+            reverse('database:qualitativefinding-list'),
+            {'direction': QualitativeFinding.Direction.ENRICHED},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Faecalibacterium prausnitzii')
+        self.assertNotContains(response, 'Roseburia intestinalis')
+
+    def test_quantitative_finding_list_filters_by_value_type(self):
+        response = self.client.get(
+            reverse('database:quantitativefinding-list'),
+            {'value_type': QuantitativeFinding.ValueType.RELATIVE_ABUNDANCE},
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '0.62')
-        self.assertNotContains(response, '-0.4')
 
     def test_detail_views_render(self):
         urls = [
             reverse('database:study-detail', args=[self.study_a.pk]),
-            reverse('database:sample-detail', args=[self.sample_a.pk]),
-            reverse('database:organism-detail', args=[self.organism_a.pk]),
-            reverse('database:relativeassociation-detail', args=[self.association.pk]),
+            reverse('database:group-detail', args=[self.group_a.pk]),
+            reverse('database:comparison-detail', args=[self.comparison.pk]),
+            reverse('database:organism-detail', args=[self.organism.pk]),
+            reverse('database:qualitativefinding-detail', args=[self.qualitative_finding.pk]),
+            reverse('database:quantitativefinding-detail', args=[self.quantitative_finding.pk]),
         ]
 
         for url in urls:

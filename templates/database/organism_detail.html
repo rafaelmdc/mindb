@@ -7,48 +7,26 @@
 <div class="page-intro detail-hero mb-4">
   <a class="back-link mb-3" href="{% url 'database:organism-list' %}">Back to organisms</a>
   <h1 class="mb-1">{{ organism.scientific_name }}</h1>
-  <p class="text-secondary mb-0">{{ organism.taxonomic_rank|title }}</p>
+  <p class="text-secondary mb-0">{{ organism.rank|title }}</p>
 </div>
 
 <div class="row g-4">
   <div class="col-lg-4">
     <div class="card shadow-sm detail-card">
       <div class="card-body">
-        <h2 class="h5">Taxonomy details</h2>
+        <h2 class="h5">Organism details</h2>
         <dl class="row mb-0 detail-grid">
           <dt class="col-sm-5">NCBI ID</dt>
-          <dd class="col-sm-7">{{ organism.ncbi_taxonomy_id }}</dd>
-          <dt class="col-sm-5">Genus</dt>
-          <dd class="col-sm-7">{{ organism.genus|default:"-" }}</dd>
-          <dt class="col-sm-5">Species</dt>
-          <dd class="col-sm-7">{{ organism.species|default:"-" }}</dd>
-          <dt class="col-sm-5">Parent</dt>
-          <dd class="col-sm-7">
-            {% if organism.parent_taxonomy %}
-              <a href="{% url 'database:organism-detail' organism.parent_taxonomy.pk %}">{{ organism.parent_taxonomy.scientific_name }}</a>
-            {% else %}
-              -
-            {% endif %}
-          </dd>
-          <dt class="col-sm-5">Associations</dt>
-          <dd class="col-sm-7">{{ association_count }}</dd>
+          <dd class="col-sm-7">{{ organism.ncbi_taxonomy_id|default:"-" }}</dd>
+          <dt class="col-sm-5">Rank</dt>
+          <dd class="col-sm-7">{{ organism.rank }}</dd>
+          <dt class="col-sm-5">Studies</dt>
+          <dd class="col-sm-7">{{ study_count }}</dd>
+          <dt class="col-sm-5">Qualitative</dt>
+          <dd class="col-sm-7">{{ qualitative_count }}</dd>
+          <dt class="col-sm-5">Quantitative</dt>
+          <dd class="col-sm-7">{{ quantitative_count }}</dd>
         </dl>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-8">
-    <div class="card shadow-sm detail-card">
-      <div class="card-body">
-        <h2 class="h5">Child taxa</h2>
-        <ul class="list-group list-group-flush detail-list">
-          {% for child in child_organisms %}
-            <li class="list-group-item px-0">
-              <a href="{% url 'database:organism-detail' child.pk %}">{{ child.scientific_name }}</a>
-            </li>
-          {% empty %}
-            <li class="list-group-item px-0 text-secondary">No child taxa recorded.</li>
-          {% endfor %}
-        </ul>
       </div>
     </div>
     {% if organism.notes %}
@@ -59,6 +37,69 @@
         </div>
       </div>
     {% endif %}
+  </div>
+  <div class="col-lg-8">
+    <div class="card shadow-sm data-shell mb-4">
+      <div class="card-body">
+        <h2 class="h5">Recent qualitative findings</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Comparison</th>
+                <th>Direction</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for finding in recent_qualitative_findings %}
+                <tr>
+                  <td><a href="{% url 'database:qualitativefinding-detail' finding.pk %}">{{ finding.comparison.label }}</a></td>
+                  <td>{{ finding.get_direction_display }}</td>
+                  <td>{{ finding.source }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="3" class="text-center text-secondary py-3">No qualitative findings recorded for this organism.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm data-shell">
+      <div class="card-body">
+        <h2 class="h5">Recent quantitative findings</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Group</th>
+                <th>Value Type</th>
+                <th>Value</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for finding in recent_quantitative_findings %}
+                <tr>
+                  <td><a href="{% url 'database:quantitativefinding-detail' finding.pk %}">{{ finding.group.name }}</a></td>
+                  <td>{{ finding.get_value_type_display }}</td>
+                  <td>{{ finding.value }}</td>
+                  <td>{{ finding.source }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="4" class="text-center text-secondary py-3">No quantitative findings recorded for this organism.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
