@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Microbiome Literature Database{% endblock %}
+{% block title %}MINDb{% endblock %}
 {% block body_class %}home-page{% endblock %}
 
 {% block content %}
@@ -8,15 +8,14 @@
   <div class="row align-items-center g-4">
     <div class="col-lg-7">
       <span class="eyebrow-chip mb-3">Curated microbiome knowledge base</span>
-      <h1 class="display-5 fw-semibold mb-3">Microbiome Literature Database</h1>
+      <h1 class="display-5 fw-semibold mb-3">Microbiome Interaction Network Database</h1>
       <p class="lead text-secondary">
         A compact Django-based database for curated microbiome study data, centered on
         study groups, explicit comparisons, qualitative findings, and quantitative taxon values.
       </p>
       <p class="text-secondary mb-4">
-        The project centralizes evidence from published studies so the team can review papers,
-        inspect cohorts and arms, compare disease and control groups, and trace taxon-level findings
-        without relying on spreadsheets alone.
+        The project centralizes evidence from published studies so any team can review papers, inspect cohorts and arms,
+        compare disease and control groups, and trace taxon-level findings in ways that go beyond spreadsheets alone.
       </p>
       <div class="d-flex flex-wrap gap-2">
         <a class="btn btn-primary btn-lg" href="{% url 'database:browser-home' %}">Open browser</a>
@@ -49,9 +48,9 @@
   <div class="col-lg-4">
     <div class="card h-100 shadow-sm feature-card">
       <div class="card-body">
-        <h2 class="h4">The database contents</h2>
+        <h2 class="h4">What’s in the database</h2>
         <p class="text-secondary mb-0">
-          Study metadata, group and comparison records, organism records, qualitative findings, quantitative values, and slim metadata variables in one searchable resource.
+          The database brings together paper details, study groups, comparisons, organisms, qualitative findings, quantitative values, and extra metadata in one place.
         </p>
       </div>
     </div>
@@ -61,7 +60,7 @@
       <div class="card-body">
         <h2 class="h4">Why it matters</h2>
         <p class="text-secondary mb-0">
-          Microbiome evidence is often reported as direction-of-change or per-group abundance. Modeling those units directly makes the literature easier to compare, inspect, and reuse.
+          Microbiome results are often reported as changes between groups rather than clean tables. Organizing them this way makes the literature easier to compare and reuse.
         </p>
       </div>
     </div>
@@ -70,9 +69,9 @@
     <div class="card h-100 shadow-sm feature-card">
       <div class="card-body">
         <h2 class="h4">How data was curated</h2>
-        <p class="text-secondary mb-0">
-          Data was reviewed from the literature, normalized into a group/comparison schema, and checked before import to preserve provenance and context.
-        </p>
+          <p class="text-secondary mb-0">
+            Each paper is reviewed by hand, organized into groups and comparisons, and checked before import so the original context is not lost.
+          </p>
       </div>
     </div>
   </div>
