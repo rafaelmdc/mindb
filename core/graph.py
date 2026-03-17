@@ -1,29 +1,82 @@
-def build_comparison_graph(findings):
-    comparison_nodes = {}
+def _disease_label(comparison):
+    condition = (comparison.group_a.condition or '').strip()
+    if condition:
+        return condition
+    return comparison.group_a.name
+
+
+def _node_sort_key(nodes_by_id, node_id):
+    node = nodes_by_id[node_id]
+    return (-len(node['neighbors']), node['label'].lower())
+
+
+def _build_positions(nodes_by_id, *, x_position, y_step=108, y_start=96):
+    positions = {}
+    for index, node_id in enumerate(
+        sorted(nodes_by_id, key=lambda current_id: _node_sort_key(nodes_by_id, current_id))
+    ):
+        positions[node_id] = {'x': x_position, 'y': y_start + (index * y_step)}
+    return positions
+
+
+def _build_disease_positions(disease_nodes, organism_positions, *, x_position, fallback_step=120, y_start=96):
+    def disease_sort_key(node_id):
+        neighbor_positions = sorted(
+            organism_positions[neighbor_id]['y']
+            for neighbor_id in disease_nodes[node_id]['neighbors']
+            if neighbor_id in organism_positions
+        )
+        if neighbor_positions:
+            midpoint = sum(neighbor_positions) / len(neighbor_positions)
+        else:
+            midpoint = 0
+        return (midpoint, -len(disease_nodes[node_id]['neighbors']), disease_nodes[node_id]['label'].lower())
+
+    positions = {}
+    for index, node_id in enumerate(sorted(disease_nodes, key=disease_sort_key)):
+        neighbor_positions = sorted(
+            organism_positions[neighbor_id]['y']
+            for neighbor_id in disease_nodes[node_id]['neighbors']
+            if neighbor_id in organism_positions
+        )
+        preferred_y = sum(neighbor_positions) / len(neighbor_positions) if neighbor_positions else y_start + (index * fallback_step)
+        minimum_y = y_start if index == 0 else positions[previous_node_id]['y'] + fallback_step
+        y_position = max(preferred_y, minimum_y)
+        positions[node_id] = {'x': x_position, 'y': y_position}
+        previous_node_id = node_id
+    return positions
+
+
+def build_disease_graph(findings):
+    disease_nodes = {}
     organism_nodes = {}
     edge_map = {}
+    unique_organism_ids = set()
 
     for finding in findings:
         comparison = finding.comparison
         organism = finding.organism
-        comparison_node_id = f'comparison-{comparison.pk}'
-        organism_node_id = f'organism-{organism.pk}'
+        disease_label = _disease_label(comparison)
+        disease_node_id = f'disease-{disease_label.lower()}'
+        direction_column = 'enriched' if finding.direction in {'enriched', 'increased'} else 'depleted'
+        organism_node_id = f'{direction_column}-organism-{organism.pk}'
 
-        comparison_node = comparison_nodes.setdefault(
-            comparison_node_id,
+        disease_node = disease_nodes.setdefault(
+            disease_node_id,
             {
-                'id': comparison_node_id,
-                'label': comparison.label,
-                'node_type': 'comparison',
-                'study_title': comparison.study.title,
-                'group_a': comparison.group_a.name,
-                'group_b': comparison.group_b.name,
-                'study_ids': {comparison.study_id},
+                'id': disease_node_id,
+                'label': disease_label,
+                'node_type': 'disease',
+                'study_ids': set(),
                 'neighbors': set(),
+                'comparison_labels': set(),
+                'group_names': set(),
             },
         )
-        comparison_node['study_ids'].add(comparison.study_id)
-        comparison_node['neighbors'].add(organism_node_id)
+        disease_node['study_ids'].add(comparison.study_id)
+        disease_node['neighbors'].add(organism_node_id)
+        disease_node['comparison_labels'].add(comparison.label)
+        disease_node['group_names'].add(comparison.group_a.name)
 
         organism_node = organism_nodes.setdefault(
             organism_node_id,
@@ -31,6 +84,8 @@ def build_comparison_graph(findings):
                 'id': organism_node_id,
                 'label': organism.scientific_name,
                 'node_type': 'organism',
+                'column': direction_column,
+                'direction': direction_column,
                 'rank': organism.rank,
                 'taxonomy_id': organism.ncbi_taxonomy_id,
                 'study_ids': set(),
@@ -38,27 +93,44 @@ def build_comparison_graph(findings):
             },
         )
         organism_node['study_ids'].add(comparison.study_id)
-        organism_node['neighbors'].add(comparison_node_id)
+        organism_node['neighbors'].add(disease_node_id)
+        unique_organism_ids.add(organism.pk)
 
-        edge_key = (comparison_node_id, organism_node_id)
+        edge_key = (organism_node_id, disease_node_id)
         edge = edge_map.setdefault(
             edge_key,
             {
-                'source': comparison_node_id,
-                'target': organism_node_id,
+                'source': organism_node_id,
+                'target': disease_node_id,
+                'column': direction_column,
                 'finding_count': 0,
                 'study_ids': set(),
-                'directions': {},
                 'sources': set(),
+                'comparison_labels': set(),
             },
         )
         edge['finding_count'] += 1
         edge['study_ids'].add(comparison.study_id)
-        edge['directions'][finding.direction] = edge['directions'].get(finding.direction, 0) + 1
         edge['sources'].add(finding.source)
+        edge['comparison_labels'].add(comparison.label)
+
+    enriched_positions = _build_positions(
+        {node_id: node for node_id, node in organism_nodes.items() if node['column'] == 'enriched'},
+        x_position=180,
+    )
+    depleted_positions = _build_positions(
+        {node_id: node for node_id, node in organism_nodes.items() if node['column'] == 'depleted'},
+        x_position=1060,
+    )
+    disease_positions = _build_disease_positions(
+        disease_nodes,
+        {**enriched_positions, **depleted_positions},
+        x_position=620,
+    )
+    node_positions = {**enriched_positions, **disease_positions, **depleted_positions}
 
     nodes = []
-    for attrs in comparison_nodes.values():
+    for attrs in disease_nodes.values():
         nodes.append(
             {
                 'data': {
@@ -67,13 +139,15 @@ def build_comparison_graph(findings):
                     'node_type': attrs['node_type'],
                     'degree': len(attrs['neighbors']),
                     'study_count': len(attrs['study_ids']),
+                    'comparison_count': len(attrs['comparison_labels']),
                     'group': attrs['node_type'],
-                    'study_title': attrs['study_title'],
-                    'group_a': attrs['group_a'],
-                    'group_b': attrs['group_b'],
-                }
+                    'comparison_labels': ', '.join(sorted(attrs['comparison_labels'])),
+                    'group_names': ', '.join(sorted(attrs['group_names'])),
+                },
+                'position': node_positions[attrs['id']],
             }
         )
+
     for attrs in organism_nodes.values():
         nodes.append(
             {
@@ -81,48 +155,51 @@ def build_comparison_graph(findings):
                     'id': attrs['id'],
                     'label': attrs['label'],
                     'node_type': attrs['node_type'],
+                    'column': attrs['column'],
                     'degree': len(attrs['neighbors']),
                     'study_count': len(attrs['study_ids']),
-                    'group': attrs['node_type'],
+                    'group': f"{attrs['node_type']}-{attrs['column']}",
                     'rank': attrs['rank'],
                     'taxonomy_id': attrs['taxonomy_id'],
-                }
+                },
+                'position': node_positions[attrs['id']],
             }
         )
 
     edges = []
     for edge in edge_map.values():
-        directions = edge['directions']
-        dominant_direction = sorted(
-            directions.items(),
-            key=lambda item: (-item[1], item[0]),
-        )[0][0]
+        source_node = organism_nodes[edge['source']]
+        target_node = disease_nodes[edge['target']]
         edges.append(
             {
                 'data': {
                     'id': f"{edge['source']}-{edge['target']}",
                     'source': edge['source'],
                     'target': edge['target'],
-                    'source_label': comparison_nodes[edge['source']]['label'],
-                    'target_label': organism_nodes[edge['target']]['label'],
+                    'source_label': source_node['label'],
+                    'target_label': target_node['label'],
+                    'column': edge['column'],
+                    'direction_summary': edge['column'],
                     'finding_count': edge['finding_count'],
                     'study_count': len(edge['study_ids']),
-                    'direction_summary': ', '.join(
-                        f'{direction}: {count}'
-                        for direction, count in sorted(directions.items())
-                    ),
-                    'dominant_direction': dominant_direction,
                     'source_count': len(edge['sources']),
-                    'label': dominant_direction,
+                    'comparison_labels': ', '.join(sorted(edge['comparison_labels'])),
                 }
             }
         )
 
-    nodes.sort(key=lambda item: (item['data']['node_type'], item['data']['label']))
-    edges.sort(key=lambda item: (item['data']['source'], item['data']['target']))
+    nodes.sort(key=lambda item: (item['data']['node_type'], item['data'].get('column', ''), item['data']['label']))
+    edges.sort(key=lambda item: (item['data']['target_label'], item['data']['column'], item['data']['source_label']))
 
-    comparison_count = sum(1 for node in nodes if node['data']['node_type'] == 'comparison')
-    organism_count = sum(1 for node in nodes if node['data']['node_type'] == 'organism')
+    enriched_count = sum(1 for node in organism_nodes.values() if node['column'] == 'enriched')
+    depleted_count = sum(1 for node in organism_nodes.values() if node['column'] == 'depleted')
+    max_column_count = max(
+        enriched_count,
+        depleted_count,
+        len(disease_nodes),
+        1,
+    )
+    layout_height = max(680, 160 + ((max_column_count - 1) * 108))
 
     return {
         'nodes': nodes,
@@ -131,7 +208,11 @@ def build_comparison_graph(findings):
             'node_count': len(nodes),
             'edge_count': len(edges),
             'finding_count': sum(edge['data']['finding_count'] for edge in edges),
-            'comparison_count': comparison_count,
-            'organism_count': organism_count,
+            'disease_count': len(disease_nodes),
+            'organism_count': len(unique_organism_ids),
+            'enriched_organism_count': enriched_count,
+            'depleted_organism_count': depleted_count,
+            'layout_width': 1240,
+            'layout_height': layout_height,
         },
     }

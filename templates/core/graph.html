@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Comparison Graph{% endblock %}
+{% block title %}Disease Network{% endblock %}
 {% block body_class %}graph-page{% endblock %}
 
 {% block content %}
 <div class="page-intro d-flex justify-content-between align-items-end mb-4">
   <div>
-    <h1 class="mb-1">Comparison Graph</h1>
+    <h1 class="mb-1">Disease Network</h1>
     <p class="text-secondary mb-0">
-      Explore qualitative taxon findings as a comparison-to-organism network.
+      Explore qualitative findings as a three-column network: enriched organisms, diseases, and depleted organisms.
     </p>
   </div>
   <a class="btn btn-outline-secondary" href="{% url 'database:qualitativefinding-list' %}">Open qualitative browser</a>
@@ -35,8 +35,8 @@
       </select>
     </div>
     <div class="col-md-3">
-      <label class="form-label" for="id_comparison">Comparison query</label>
-      <input class="form-control" id="id_comparison" type="text" name="comparison" value="{{ current_comparison }}" placeholder="Label or group name">
+      <label class="form-label" for="id_disease">Disease query</label>
+      <input class="form-control" id="id_disease" type="text" name="disease" value="{{ current_disease }}" placeholder="Condition or target group">
     </div>
     <div class="col-md-4">
       <label class="form-label" for="id_organism">Organism query</label>
@@ -53,24 +53,24 @@
   <div class="col-md-3">
     <div class="card shadow-sm metric-card">
       <div class="card-body">
-        <p class="text-uppercase text-secondary small mb-2">Nodes</p>
-        <p class="display-6 mb-0">{{ graph_data.summary.node_count }}</p>
+        <p class="text-uppercase text-secondary small mb-2">Diseases</p>
+        <p class="display-6 mb-0">{{ graph_data.summary.disease_count }}</p>
       </div>
     </div>
   </div>
   <div class="col-md-3">
     <div class="card shadow-sm metric-card">
       <div class="card-body">
-        <p class="text-uppercase text-secondary small mb-2">Edges</p>
-        <p class="display-6 mb-0">{{ graph_data.summary.edge_count }}</p>
+        <p class="text-uppercase text-secondary small mb-2">Enriched Taxa</p>
+        <p class="display-6 mb-0">{{ graph_data.summary.enriched_organism_count }}</p>
       </div>
     </div>
   </div>
   <div class="col-md-3">
     <div class="card shadow-sm metric-card">
       <div class="card-body">
-        <p class="text-uppercase text-secondary small mb-2">Comparisons</p>
-        <p class="display-6 mb-0">{{ graph_data.summary.comparison_count }}</p>
+        <p class="text-uppercase text-secondary small mb-2">Depleted Taxa</p>
+        <p class="display-6 mb-0">{{ graph_data.summary.depleted_organism_count }}</p>
       </div>
     </div>
   </div>
@@ -87,7 +87,26 @@
 {% if graph_data.summary.edge_count %}
   <div class="card shadow-sm graph-shell mb-4">
     <div class="card-body">
-      <div id="graph-canvas" style="height: 560px;"></div>
+      <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
+        <div>
+          <h2 class="h5 mb-1">Interactive Network</h2>
+          <p class="text-secondary mb-0">
+            Click any disease or organism to isolate its local neighborhood. Click empty space to reset.
+          </p>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm align-self-start align-self-lg-auto" type="button" id="graph-reset-focus">
+          Clear focus
+        </button>
+      </div>
+      <div class="graph-stage">
+        <div class="graph-axis graph-axis-left">Enriched organisms</div>
+        <div class="graph-axis graph-axis-center">Diseases</div>
+        <div class="graph-axis graph-axis-right">Depleted organisms</div>
+        <div
+          id="graph-canvas"
+          style="height: {{ graph_data.summary.layout_height }}px; width: {{ graph_data.summary.layout_width }}px;"
+        ></div>
+      </div>
     </div>
   </div>
 
@@ -95,15 +114,15 @@
     <div class="card-body">
       <h2 class="h5">Current graph payload</h2>
       <p class="text-secondary">
-        Comparison nodes connect to organism nodes through aggregated qualitative findings.
+        Diseases stay in the center. Enriched organisms connect from the left, depleted organisms from the right.
       </p>
       <div class="table-responsive">
         <table class="table table-sm mb-0">
           <thead>
             <tr>
-              <th>Comparison</th>
-              <th>Organism</th>
-              <th>Direction mix</th>
+              <th>Enriched Organism</th>
+              <th>Disease</th>
+              <th>Depleted Organism</th>
               <th>Findings</th>
               <th>Sources</th>
             </tr>
@@ -111,9 +130,9 @@
           <tbody>
             {% for edge in graph_data.edges %}
               <tr>
-                <td>{{ edge.data.source_label }}</td>
+                <td>{% if edge.data.column == "enriched" %}{{ edge.data.source_label }}{% endif %}</td>
                 <td>{{ edge.data.target_label }}</td>
-                <td>{{ edge.data.direction_summary }}</td>
+                <td>{% if edge.data.column == "depleted" %}{{ edge.data.source_label }}{% endif %}</td>
                 <td>{{ edge.data.finding_count }}</td>
                 <td>{{ edge.data.source_count }}</td>
               </tr>
@@ -138,60 +157,158 @@
     const graphData = JSON.parse(document.getElementById('graph-data').textContent);
     const elements = [...graphData.nodes, ...graphData.edges];
 
-    cytoscape({
+    const cy = cytoscape({
       container: graphElement,
       elements,
-      layout: { name: 'cose', animate: false, padding: 24 },
+      layout: { name: 'preset', fit: true, padding: 96, animate: false },
+      minZoom: 0.45,
+      maxZoom: 2.4,
+      wheelSensitivity: 0.18,
       style: [
         {
-          selector: 'node[node_type = "comparison"]',
+          selector: 'node[node_type = "disease"]',
           style: {
-            'background-color': '#0d6efd',
+            'background-color': '#495057',
             'shape': 'round-rectangle',
             'label': 'data(label)',
-            'color': '#1f2933',
+            'color': '#0f1720',
             'text-background-color': '#ffffff',
-            'text-background-opacity': 0.9,
-            'text-background-padding': '4px',
-            'font-size': 11,
-            'width': 'mapData(degree, 0, 10, 60, 130)',
-            'height': 'mapData(degree, 0, 10, 28, 52)',
+            'text-background-opacity': 0.96,
+            'text-background-padding': '6px',
+            'text-wrap': 'wrap',
+            'text-max-width': 120,
+            'font-size': 12,
+            'font-weight': 700,
+            'border-width': 2,
+            'border-color': '#f8fafc',
+            'width': 'mapData(degree, 0, 10, 120, 170)',
+            'height': 'mapData(degree, 0, 10, 44, 68)',
           }
         },
         {
-          selector: 'node[node_type = "organism"]',
+          selector: 'node[column = "enriched"]',
           style: {
-            'background-color': '#198754',
+            'background-color': '#dc3545',
             'label': 'data(label)',
-            'color': '#1f2933',
+            'color': '#0f1720',
             'text-background-color': '#ffffff',
-            'text-background-opacity': 0.9,
-            'text-background-padding': '4px',
+            'text-background-opacity': 0.96,
+            'text-background-padding': '5px',
+            'text-wrap': 'wrap',
+            'text-max-width': 128,
             'font-size': 11,
-            'width': 'mapData(degree, 0, 10, 24, 52)',
-            'height': 'mapData(degree, 0, 10, 24, 52)',
+            'font-weight': 600,
+            'border-width': 2,
+            'border-color': '#f8fafc',
+            'width': 'mapData(degree, 0, 10, 22, 34)',
+            'height': 'mapData(degree, 0, 10, 22, 34)',
           }
         },
         {
-          selector: 'edge[dominant_direction = "enriched"], edge[dominant_direction = "increased"]',
+          selector: 'node[column = "depleted"]',
+          style: {
+            'background-color': '#0d6efd',
+            'label': 'data(label)',
+            'color': '#0f1720',
+            'text-background-color': '#ffffff',
+            'text-background-opacity': 0.96,
+            'text-background-padding': '5px',
+            'text-wrap': 'wrap',
+            'text-max-width': 128,
+            'font-size': 11,
+            'font-weight': 600,
+            'border-width': 2,
+            'border-color': '#f8fafc',
+            'width': 'mapData(degree, 0, 10, 22, 34)',
+            'height': 'mapData(degree, 0, 10, 22, 34)',
+          }
+        },
+        {
+          selector: 'edge[column = "enriched"]',
           style: {
             'line-color': '#dc3545',
-            'width': 'mapData(finding_count, 1, 10, 2, 8)',
-            'curve-style': 'bezier',
-            'opacity': 0.78
+            'width': 'mapData(finding_count, 1, 10, 2.5, 7)',
+            'curve-style': 'straight',
+            'target-arrow-shape': 'triangle',
+            'target-arrow-color': '#dc3545',
+            'arrow-scale': 0.9,
+            'opacity': 0.58
           }
         },
         {
-          selector: 'edge[dominant_direction = "depleted"], edge[dominant_direction = "decreased"]',
+          selector: 'edge[column = "depleted"]',
           style: {
             'line-color': '#0d6efd',
-            'width': 'mapData(finding_count, 1, 10, 2, 8)',
-            'curve-style': 'bezier',
-            'opacity': 0.78
+            'width': 'mapData(finding_count, 1, 10, 2.5, 7)',
+            'curve-style': 'straight',
+            'target-arrow-shape': 'triangle',
+            'target-arrow-color': '#0d6efd',
+            'arrow-scale': 0.9,
+            'opacity': 0.58
+          }
+        },
+        {
+          selector: '.faded',
+          style: {
+            'opacity': 0.08,
+            'text-opacity': 0.12,
+          }
+        },
+        {
+          selector: 'node.focused',
+          style: {
+            'border-width': 4,
+            'border-color': '#111827',
+            'opacity': 1,
+            'text-opacity': 1,
+            'z-index': 9999,
+          }
+        },
+        {
+          selector: 'node.context',
+          style: {
+            'border-width': 3,
+            'border-color': '#475569',
+            'opacity': 1,
+            'text-opacity': 1,
+          }
+        },
+        {
+          selector: 'edge.focused',
+          style: {
+            'opacity': 0.95,
+            'width': 'mapData(finding_count, 1, 10, 4, 10)',
+            'z-index': 9998,
           }
         }
       ]
     });
+
+    const resetFocus = () => {
+      cy.elements().removeClass('faded focused context');
+    };
+
+    cy.on('tap', 'node', (event) => {
+      const node = event.target;
+      const neighborhood = node.closedNeighborhood();
+      const contextNodes = neighborhood.nodes();
+
+      cy.elements().addClass('faded');
+      node.removeClass('faded').addClass('focused');
+      contextNodes.not(node).removeClass('faded').addClass('context');
+      neighborhood.edges().removeClass('faded').addClass('focused');
+    });
+
+    cy.on('tap', (event) => {
+      if (event.target === cy) {
+        resetFocus();
+      }
+    });
+
+    const resetButton = document.getElementById('graph-reset-focus');
+    if (resetButton) {
+      resetButton.addEventListener('click', resetFocus);
+    }
   }
 </script>
 {% endblock %}

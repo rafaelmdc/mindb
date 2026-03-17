@@ -6,9 +6,9 @@ The graph view represents qualitative microbiome findings derived from curated `
 
 Its purpose is to let users visually explore:
 
-- which organisms are reported in which comparisons
-- whether those findings are enriched or depleted
-- how many supporting findings exist for each comparison-taxon connection
+- which organisms are reported as enriched for a disease
+- which organisms are reported as depleted for a disease
+- how many supporting findings exist for each disease-taxon connection
 
 ## Source data
 
@@ -27,21 +27,28 @@ Supporting models:
 
 ### Node meaning
 
-- one node type represents a `Comparison`
-- one node type represents an `Organism`
+- one node type represents a disease-like target condition derived from `Comparison.group_a`
+- organism nodes are split by directional role:
+  - enriched organisms appear in the left column
+  - depleted organisms appear in the right column
+  - the same organism label may appear on both sides when evidence exists in both directions
 
 ### Edge meaning
 
-An edge represents one or more qualitative findings linking an organism to a comparison.
+An edge represents one or more qualitative findings linking an organism role node to a disease node.
 
 ### Edge attributes
 
 - dominant direction
-- counts by direction
 - number of supporting findings
 - number of unique sources
+- contributing comparison labels
 
 ## Notes
 
 - `QuantitativeFinding` is supporting evidence, not the primary graph edge type.
 - The old organism-organism `RelativeAssociation` graph has been removed.
+- The current web layout is intentionally columnar:
+  - left: enriched organisms
+  - center: diseases
+  - right: depleted organisms

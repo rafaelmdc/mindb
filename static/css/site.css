@@ -374,6 +374,40 @@ body {
   border: 1px solid rgba(19, 34, 37, 0.08);
 }
 
+.graph-stage {
+  position: relative;
+  overflow: auto;
+  padding-top: 2.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.graph-axis {
+  position: absolute;
+  top: 0;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--site-muted);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(19, 34, 37, 0.08);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+}
+
+.graph-axis-left {
+  left: 1.2rem;
+}
+
+.graph-axis-center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.graph-axis-right {
+  right: 1.2rem;
+}
+
 .empty-state {
   background: rgba(255, 255, 255, 0.72);
   border-radius: var(--site-radius);

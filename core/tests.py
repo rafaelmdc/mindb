@@ -39,7 +39,7 @@ class HomeViewTests(TestCase):
         response = self.client.get(reverse('core:home'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Microbiome Literature Database')
+        self.assertContains(response, 'Microbiome Interaction Network Database')
         self.assertContains(response, 'Groups')
         self.assertContains(response, 'Comparisons')
         self.assertContains(response, 'Qualitative')
@@ -106,9 +106,11 @@ class GraphViewTests(TestCase):
         response = self.client.get(reverse('core:graph'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Comparison Graph')
-        self.assertEqual(response.context['graph_data']['summary']['comparison_count'], 2)
+        self.assertContains(response, 'Disease Network')
+        self.assertEqual(response.context['graph_data']['summary']['disease_count'], 2)
         self.assertEqual(response.context['graph_data']['summary']['organism_count'], 3)
+        self.assertEqual(response.context['graph_data']['summary']['enriched_organism_count'], 2)
+        self.assertEqual(response.context['graph_data']['summary']['depleted_organism_count'], 1)
         self.assertEqual(response.context['graph_data']['summary']['edge_count'], 3)
 
     def test_graph_page_filters_by_direction(self):
@@ -120,6 +122,8 @@ class GraphViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['graph_data']['summary']['edge_count'], 2)
         self.assertEqual(response.context['graph_data']['summary']['finding_count'], 2)
+        self.assertEqual(response.context['graph_data']['summary']['enriched_organism_count'], 2)
+        self.assertEqual(response.context['graph_data']['summary']['depleted_organism_count'], 0)
 
 
 class StaffHomeViewTests(TestCase):

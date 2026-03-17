@@ -6,7 +6,7 @@ from django.views.generic import TemplateView
 
 from database.models import Comparison, Group, Organism, QualitativeFinding, QuantitativeFinding, Study
 
-from .graph import build_comparison_graph
+from .graph import build_disease_graph
 from .model_diagram import render_model_diagram_svg
 
 
@@ -96,18 +96,18 @@ class GraphView(TemplateView):
 
         study_id = self.request.GET.get('study', '').strip()
         direction = self.request.GET.get('direction', '').strip()
-        comparison_query = self.request.GET.get('comparison', '').strip()
+        disease_query = self.request.GET.get('disease', '').strip() or self.request.GET.get('comparison', '').strip()
         organism_query = self.request.GET.get('organism', '').strip()
 
         if study_id:
             queryset = queryset.filter(comparison__study_id=study_id)
         if direction:
             queryset = queryset.filter(direction=direction)
-        if comparison_query:
+        if disease_query:
             queryset = queryset.filter(
-                Q(comparison__label__icontains=comparison_query)
-                | Q(comparison__group_a__name__icontains=comparison_query)
-                | Q(comparison__group_b__name__icontains=comparison_query)
+                Q(comparison__group_a__condition__icontains=disease_query)
+                | Q(comparison__group_a__name__icontains=disease_query)
+                | Q(comparison__label__icontains=disease_query)
             )
         if organism_query:
             queryset = queryset.filter(
@@ -119,12 +119,12 @@ class GraphView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        graph_data = build_comparison_graph(self.get_queryset())
+        graph_data = build_disease_graph(self.get_queryset())
         context['graph_data'] = graph_data
         context['studies'] = Study.objects.order_by('title')
         context['direction_choices'] = QualitativeFinding.Direction.choices
         context['current_study'] = self.request.GET.get('study', '').strip()
         context['current_direction'] = self.request.GET.get('direction', '').strip()
-        context['current_comparison'] = self.request.GET.get('comparison', '').strip()
+        context['current_disease'] = self.request.GET.get('disease', '').strip() or self.request.GET.get('comparison', '').strip()
         context['current_organism'] = self.request.GET.get('organism', '').strip()
         return context
