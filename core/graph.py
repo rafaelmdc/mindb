@@ -10,6 +10,8 @@ GRAPH_GROUPING_CHOICES = (
     ('phylum', 'Phylum'),
 )
 GRAPH_GROUPING_RANKS = {value for value, _label in GRAPH_GROUPING_CHOICES}
+POSITIVE_DIRECTIONS = {'enriched', 'increased'}
+NEGATIVE_DIRECTIONS = {'depleted', 'decreased'}
 
 
 def _disease_label(comparison):
@@ -17,6 +19,14 @@ def _disease_label(comparison):
     if condition:
         return condition
     return comparison.group_a.name
+
+
+def _normalize_direction(direction):
+    if direction in POSITIVE_DIRECTIONS:
+        return 'positive'
+    if direction in NEGATIVE_DIRECTIONS:
+        return 'negative'
+    return ''
 
 
 def _node_sort_key(nodes_by_id, node_id):
@@ -83,6 +93,254 @@ def _resolve_grouped_taxa(findings, grouping_rank):
     return {
         finding.pk: grouped_by_descendant.get(finding.taxon_id)
         for finding in findings
+    }
+
+
+def build_directional_taxon_network(findings, *, grouping_rank='leaf', minimum_support=1, pattern_filter='all'):
+    grouping_rank = grouping_rank if grouping_rank in GRAPH_GROUPING_RANKS else 'leaf'
+    pattern_filter = pattern_filter if pattern_filter in {'all', 'same_direction', 'opposite_direction', 'mixed'} else 'all'
+    try:
+        minimum_support = max(int(minimum_support), 1)
+    except (TypeError, ValueError):
+        minimum_support = 1
+
+    findings = list(findings)
+    grouped_taxa = _resolve_grouped_taxa(findings, grouping_rank)
+    skipped_rollup_count = 0
+    per_comparison = {}
+
+    for finding in findings:
+        grouped_taxon = grouped_taxa.get(finding.pk)
+        if grouped_taxon is None:
+            skipped_rollup_count += 1
+            continue
+
+        normalized_direction = _normalize_direction(finding.direction)
+        if not normalized_direction:
+            continue
+
+        comparison_bucket = per_comparison.setdefault(
+            finding.comparison_id,
+            {
+                'comparison': finding.comparison,
+                'items': {},
+            },
+        )
+        item_key = (grouped_taxon.pk, normalized_direction)
+        item = comparison_bucket['items'].setdefault(
+            item_key,
+            {
+                'taxon': grouped_taxon,
+                'direction': normalized_direction,
+                'leaf_taxon_ids': set(),
+                'sources': set(),
+            },
+        )
+        item['leaf_taxon_ids'].add(finding.taxon_id)
+        if finding.source:
+            item['sources'].add(finding.source)
+
+    node_map = {}
+    edge_map = {}
+    total_support_count = 0
+
+    for comparison_data in per_comparison.values():
+        comparison = comparison_data['comparison']
+        unique_items = sorted(
+            comparison_data['items'].values(),
+            key=lambda item: (item['taxon'].scientific_name.lower(), item['direction']),
+        )
+        comparison_pair_map = {}
+        for index, left_item in enumerate(unique_items):
+            for right_item in unique_items[index + 1:]:
+                if left_item['taxon'].pk == right_item['taxon'].pk:
+                    continue
+
+                pair_taxa = sorted(
+                    [left_item['taxon'], right_item['taxon']],
+                    key=lambda taxon: (taxon.pk, taxon.scientific_name.lower()),
+                )
+                source_taxon, target_taxon = pair_taxa
+                edge_key = (source_taxon.pk, target_taxon.pk)
+                pair_pattern = (
+                    'same_direction'
+                    if left_item['direction'] == right_item['direction']
+                    else 'opposite_direction'
+                )
+                comparison_pair = comparison_pair_map.setdefault(
+                    edge_key,
+                    {
+                        'same_direction': False,
+                        'opposite_direction': False,
+                        'source_labels': set(),
+                        'leaf_taxon_ids': set(),
+                    },
+                )
+                comparison_pair[pair_pattern] = True
+                comparison_pair['source_labels'].update(left_item['sources'])
+                comparison_pair['source_labels'].update(right_item['sources'])
+                comparison_pair['leaf_taxon_ids'].update(left_item['leaf_taxon_ids'])
+                comparison_pair['leaf_taxon_ids'].update(right_item['leaf_taxon_ids'])
+
+        disease_label = _disease_label(comparison)
+        for edge_key, comparison_pair in comparison_pair_map.items():
+            source_taxon_id, target_taxon_id = edge_key
+            source_taxon = next(
+                item['taxon']
+                for item in unique_items
+                if item['taxon'].pk == source_taxon_id
+            )
+            target_taxon = next(
+                item['taxon']
+                for item in unique_items
+                if item['taxon'].pk == target_taxon_id
+            )
+            edge = edge_map.setdefault(
+                edge_key,
+                {
+                    'source_taxon': source_taxon,
+                    'target_taxon': target_taxon,
+                    'same_direction_count': 0,
+                    'opposite_direction_count': 0,
+                    'study_ids': set(),
+                    'source_labels': set(),
+                    'comparison_labels': set(),
+                    'disease_labels': set(),
+                    'comparison_ids': set(),
+                    'leaf_taxon_ids': set(),
+                },
+            )
+
+            if comparison_pair['same_direction']:
+                edge['same_direction_count'] += 1
+                total_support_count += 1
+            if comparison_pair['opposite_direction']:
+                edge['opposite_direction_count'] += 1
+                total_support_count += 1
+            edge['study_ids'].add(comparison.study_id)
+            edge['comparison_ids'].add(comparison.pk)
+            if comparison.label:
+                edge['comparison_labels'].add(comparison.label)
+            if disease_label:
+                edge['disease_labels'].add(disease_label)
+            edge['source_labels'].update(comparison_pair['source_labels'])
+            edge['leaf_taxon_ids'].update(comparison_pair['leaf_taxon_ids'])
+
+    filtered_edges = []
+    for edge in edge_map.values():
+        total_support = edge['same_direction_count'] + edge['opposite_direction_count']
+        if total_support < minimum_support:
+            continue
+
+        if edge['same_direction_count'] and edge['opposite_direction_count']:
+            dominant_pattern = (
+                'mixed'
+                if edge['same_direction_count'] == edge['opposite_direction_count']
+                else (
+                    'same_direction'
+                    if edge['same_direction_count'] > edge['opposite_direction_count']
+                    else 'opposite_direction'
+                )
+            )
+        elif edge['same_direction_count']:
+            dominant_pattern = 'same_direction'
+        else:
+            dominant_pattern = 'opposite_direction'
+
+        if pattern_filter != 'all' and dominant_pattern != pattern_filter:
+            continue
+
+        source_id = f'taxon-{edge["source_taxon"].pk}'
+        target_id = f'taxon-{edge["target_taxon"].pk}'
+
+        for taxon in (edge['source_taxon'], edge['target_taxon']):
+            node_id = f'taxon-{taxon.pk}'
+            node = node_map.setdefault(
+                node_id,
+                {
+                    'id': node_id,
+                    'label': taxon.scientific_name,
+                    'node_type': 'taxon',
+                    'rank': taxon.rank,
+                    'taxonomy_id': taxon.ncbi_taxonomy_id,
+                    'grouping_rank': grouping_rank,
+                    'neighbors': set(),
+                    'study_ids': set(),
+                    'leaf_taxon_ids': set(),
+                },
+            )
+            node['study_ids'].update(edge['study_ids'])
+            node['leaf_taxon_ids'].update(edge['leaf_taxon_ids'])
+
+        node_map[source_id]['neighbors'].add(target_id)
+        node_map[target_id]['neighbors'].add(source_id)
+
+        filtered_edges.append(
+            {
+                'data': {
+                    'id': f'{source_id}-{target_id}',
+                    'source': source_id,
+                    'target': target_id,
+                    'source_label': edge['source_taxon'].scientific_name,
+                    'target_label': edge['target_taxon'].scientific_name,
+                    'dominant_pattern': dominant_pattern,
+                    'same_direction_count': edge['same_direction_count'],
+                    'opposite_direction_count': edge['opposite_direction_count'],
+                    'total_support': total_support,
+                    'comparison_count': len(edge['comparison_ids']),
+                    'study_count': len(edge['study_ids']),
+                    'source_count': len(edge['source_labels']),
+                    'comparison_labels': ', '.join(sorted(edge['comparison_labels'])),
+                    'disease_labels': ', '.join(sorted(edge['disease_labels'])),
+                    'leaf_taxon_count': len(edge['leaf_taxon_ids']),
+                }
+            }
+        )
+
+    nodes = []
+    for attrs in node_map.values():
+        nodes.append(
+            {
+                'data': {
+                    'id': attrs['id'],
+                    'label': attrs['label'],
+                    'node_type': attrs['node_type'],
+                    'rank': attrs['rank'],
+                    'taxonomy_id': attrs['taxonomy_id'],
+                    'grouping_rank': attrs['grouping_rank'],
+                    'degree': len(attrs['neighbors']),
+                    'study_count': len(attrs['study_ids']),
+                    'leaf_taxon_count': len(attrs['leaf_taxon_ids']),
+                    'group': 'taxon',
+                }
+            }
+        )
+
+    nodes.sort(key=lambda item: item['data']['label'].lower())
+    filtered_edges.sort(key=lambda item: (item['data']['source_label'].lower(), item['data']['target_label'].lower()))
+
+    same_direction_edge_count = sum(1 for edge in filtered_edges if edge['data']['dominant_pattern'] == 'same_direction')
+    opposite_direction_edge_count = sum(1 for edge in filtered_edges if edge['data']['dominant_pattern'] == 'opposite_direction')
+    mixed_edge_count = sum(1 for edge in filtered_edges if edge['data']['dominant_pattern'] == 'mixed')
+
+    return {
+        'nodes': nodes,
+        'edges': filtered_edges,
+        'summary': {
+            'node_count': len(nodes),
+            'edge_count': len(filtered_edges),
+            'taxon_count': len(nodes),
+            'study_count': len({study_id for node in node_map.values() for study_id in node['study_ids']}),
+            'grouping_rank': grouping_rank,
+            'skipped_rollup_count': skipped_rollup_count,
+            'minimum_support': minimum_support,
+            'pattern_filter': pattern_filter,
+            'same_direction_edge_count': same_direction_edge_count,
+            'opposite_direction_edge_count': opposite_direction_edge_count,
+            'mixed_edge_count': mixed_edge_count,
+            'total_support_count': sum(edge['data']['total_support'] for edge in filtered_edges),
+            'comparison_support_count': total_support_count,
+        },
     }
 
 

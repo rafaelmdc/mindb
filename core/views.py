@@ -7,7 +7,7 @@ from django.views.generic import TemplateView
 
 from database.models import Comparison, Group, QualitativeFinding, QuantitativeFinding, Study, Taxon
 
-from .graph import GRAPH_GROUPING_CHOICES, build_disease_graph
+from .graph import GRAPH_GROUPING_CHOICES, build_disease_graph, build_directional_taxon_network
 from .model_diagram import MODEL_DIAGRAM_CONTENT_TYPES, render_model_diagram, render_model_diagram_svg
 
 
@@ -162,5 +162,89 @@ class GraphView(TemplateView):
         context['current_taxon'] = self.request.GET.get('taxon', '').strip()
         context['current_branch'] = branch_id
         context['current_group_rank'] = grouping_rank
+        context['current_branch_taxon'] = Taxon.objects.filter(pk=branch_id).first() if branch_id else None
+        return context
+
+
+class DirectionalTaxonNetworkView(TemplateView):
+    template_name = 'core/directional_taxon_network.html'
+
+    def get_grouping_rank(self):
+        grouping_rank = self.request.GET.get('group_rank', '').strip() or 'leaf'
+        valid_ranks = {value for value, _label in GRAPH_GROUPING_CHOICES}
+        return grouping_rank if grouping_rank in valid_ranks else 'leaf'
+
+    def get_minimum_support(self):
+        minimum_support = self.request.GET.get('min_support', '').strip() or '1'
+        try:
+            return max(int(minimum_support), 1)
+        except ValueError:
+            return 1
+
+    def get_pattern_filter(self):
+        pattern_filter = self.request.GET.get('pattern', '').strip() or 'all'
+        return pattern_filter if pattern_filter in {'all', 'same_direction', 'opposite_direction', 'mixed'} else 'all'
+
+    def get_queryset(self):
+        queryset = QualitativeFinding.objects.select_related(
+            'comparison',
+            'comparison__study',
+            'comparison__group_a',
+            'comparison__group_b',
+            'taxon',
+        )
+
+        study_id = self.request.GET.get('study', '').strip()
+        disease_query = self.request.GET.get('disease', '').strip() or self.request.GET.get('comparison', '').strip()
+        taxon_query = self.request.GET.get('taxon', '').strip()
+        branch_id = self.request.GET.get('branch', '').strip()
+
+        if study_id:
+            queryset = queryset.filter(comparison__study_id=study_id)
+        if disease_query:
+            queryset = queryset.filter(
+                Q(comparison__group_a__condition__icontains=disease_query)
+                | Q(comparison__group_a__name__icontains=disease_query)
+                | Q(comparison__label__icontains=disease_query)
+            )
+        if taxon_query:
+            queryset = queryset.filter(
+                Q(taxon__scientific_name__icontains=taxon_query)
+                | Q(taxon__rank__icontains=taxon_query)
+            )
+        if branch_id:
+            queryset = queryset.filter(taxon__closure_ancestors__ancestor_id=branch_id).distinct()
+
+        return queryset.order_by('comparison__label', 'taxon__scientific_name')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        grouping_rank = self.get_grouping_rank()
+        branch_id = self.request.GET.get('branch', '').strip()
+        minimum_support = self.get_minimum_support()
+        pattern_filter = self.get_pattern_filter()
+        graph_data = build_directional_taxon_network(
+            self.get_queryset(),
+            grouping_rank=grouping_rank,
+            minimum_support=minimum_support,
+            pattern_filter=pattern_filter,
+        )
+        context['graph_data'] = graph_data
+        context['studies'] = Study.objects.order_by('title')
+        context['grouping_rank_choices'] = GRAPH_GROUPING_CHOICES
+        context['branch_taxa'] = Taxon.objects.order_by('scientific_name')[:200]
+        context['pattern_choices'] = (
+            ('all', 'All patterns'),
+            ('same_direction', 'Same direction'),
+            ('opposite_direction', 'Opposite direction'),
+            ('mixed', 'Mixed'),
+        )
+        context['current_study'] = self.request.GET.get('study', '').strip()
+        context['current_disease'] = self.request.GET.get('disease', '').strip() or self.request.GET.get('comparison', '').strip()
+        context['current_taxon'] = self.request.GET.get('taxon', '').strip()
+        context['current_branch'] = branch_id
+        context['current_group_rank'] = grouping_rank
+        context['current_min_support'] = minimum_support
+        context['current_pattern'] = pattern_filter
         context['current_branch_taxon'] = Taxon.objects.filter(pk=branch_id).first() if branch_id else None
         return context

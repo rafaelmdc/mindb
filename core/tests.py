@@ -3,6 +3,7 @@ from django.test import TestCase
 from django.urls import reverse
 from unittest.mock import patch
 
+from core.graph import build_directional_taxon_network
 from core.model_diagram import render_model_diagram_svg
 
 from database.models import Comparison, Group, QualitativeFinding, QuantitativeFinding, Study, Taxon, TaxonClosure
@@ -210,6 +211,147 @@ class GraphViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['graph_data']['summary']['skipped_rollup_count'], 3)
         self.assertContains(response, '3 findings omitted because no ancestor exists at the selected rank.')
+
+
+class DirectionalTaxonNetworkTests(TestCase):
+    def setUp(self):
+        self.study = Study.objects.create(title='Study A')
+        self.case_group = Group.objects.create(study=self.study, name='Case', condition='IBD')
+        self.control_group = Group.objects.create(study=self.study, name='Control', condition='Healthy')
+        self.validation_group = Group.objects.create(study=self.study, name='Validation', condition='IBD')
+        self.reference_group = Group.objects.create(study=self.study, name='Reference', condition='Healthy')
+        self.comparison_a = Comparison.objects.create(
+            study=self.study,
+            group_a=self.case_group,
+            group_b=self.control_group,
+            label='IBD vs healthy discovery',
+        )
+        self.comparison_b = Comparison.objects.create(
+            study=self.study,
+            group_a=self.validation_group,
+            group_b=self.reference_group,
+            label='IBD vs healthy validation',
+        )
+        self.taxon_a = Taxon.objects.create(ncbi_taxonomy_id=101, scientific_name='Blautia wexlerae', rank='species')
+        self.taxon_a_genus = Taxon.objects.create(ncbi_taxonomy_id=100, scientific_name='Blautia', rank='genus')
+        self.taxon_a.parent = self.taxon_a_genus
+        self.taxon_a.save(update_fields=['parent'])
+        self.taxon_b = Taxon.objects.create(ncbi_taxonomy_id=201, scientific_name='Roseburia intestinalis', rank='species')
+        self.taxon_b_genus = Taxon.objects.create(ncbi_taxonomy_id=200, scientific_name='Roseburia', rank='genus')
+        self.taxon_b.parent = self.taxon_b_genus
+        self.taxon_b.save(update_fields=['parent'])
+        self.taxon_c = Taxon.objects.create(ncbi_taxonomy_id=301, scientific_name='Bacteroides fragilis', rank='species')
+        self.taxon_c_genus = Taxon.objects.create(ncbi_taxonomy_id=300, scientific_name='Bacteroides', rank='genus')
+        self.taxon_c.parent = self.taxon_c_genus
+        self.taxon_c.save(update_fields=['parent'])
+        self.family = Taxon.objects.create(ncbi_taxonomy_id=999, scientific_name='Lachnospiraceae', rank='family')
+        self.taxon_a_genus.parent = self.family
+        self.taxon_a_genus.save(update_fields=['parent'])
+        self.taxon_b_genus.parent = self.family
+        self.taxon_b_genus.save(update_fields=['parent'])
+        self._attach_lineage(self.family, self.taxon_a_genus, self.taxon_a)
+        self._attach_lineage(self.family, self.taxon_b_genus, self.taxon_b)
+        self._attach_lineage(self.taxon_c_genus, self.taxon_c)
+
+        QualitativeFinding.objects.create(
+            comparison=self.comparison_a,
+            taxon=self.taxon_a,
+            direction=QualitativeFinding.Direction.ENRICHED,
+            source='Table 2',
+        )
+        QualitativeFinding.objects.create(
+            comparison=self.comparison_a,
+            taxon=self.taxon_b,
+            direction=QualitativeFinding.Direction.INCREASED,
+            source='Table 2',
+        )
+        QualitativeFinding.objects.create(
+            comparison=self.comparison_a,
+            taxon=self.taxon_c,
+            direction=QualitativeFinding.Direction.DEPLETED,
+            source='Table 2',
+        )
+        QualitativeFinding.objects.create(
+            comparison=self.comparison_b,
+            taxon=self.taxon_a,
+            direction=QualitativeFinding.Direction.ENRICHED,
+            source='Table 4',
+        )
+        QualitativeFinding.objects.create(
+            comparison=self.comparison_b,
+            taxon=self.taxon_b,
+            direction=QualitativeFinding.Direction.DECREASED,
+            source='Table 4',
+        )
+        QualitativeFinding.objects.create(
+            comparison=self.comparison_b,
+            taxon=self.taxon_c,
+            direction=QualitativeFinding.Direction.DEPLETED,
+            source='Table 4',
+        )
+
+    def _attach_lineage(self, *taxa):
+        for depth, ancestor in enumerate(reversed(taxa)):
+            TaxonClosure.objects.get_or_create(
+                ancestor=ancestor,
+                descendant=taxa[-1],
+                defaults={'depth': len(taxa) - depth - 1},
+            )
+        for taxon in taxa:
+            TaxonClosure.objects.get_or_create(
+                ancestor=taxon,
+                descendant=taxon,
+                defaults={'depth': 0},
+            )
+        for descendant_index, descendant in enumerate(taxa[1:], start=1):
+            for ancestor_index, ancestor in enumerate(taxa[:descendant_index]):
+                TaxonClosure.objects.get_or_create(
+                    ancestor=ancestor,
+                    descendant=descendant,
+                    defaults={'depth': descendant_index - ancestor_index},
+                )
+
+    def test_directional_taxon_network_builder_aggregates_pair_patterns(self):
+        graph_data = build_directional_taxon_network(
+            QualitativeFinding.objects.select_related('comparison', 'comparison__group_a', 'comparison__group_b', 'comparison__study', 'taxon'),
+        )
+
+        self.assertEqual(graph_data['summary']['edge_count'], 3)
+        edge_payloads = {
+            frozenset({edge['data']['source_label'], edge['data']['target_label']}): edge['data']
+            for edge in graph_data['edges']
+        }
+        self.assertEqual(
+            edge_payloads[frozenset({'Blautia wexlerae', 'Roseburia intestinalis'})]['dominant_pattern'],
+            'mixed',
+        )
+        self.assertEqual(
+            edge_payloads[frozenset({'Blautia wexlerae', 'Bacteroides fragilis'})]['dominant_pattern'],
+            'opposite_direction',
+        )
+        self.assertEqual(
+            edge_payloads[frozenset({'Roseburia intestinalis', 'Bacteroides fragilis'})]['dominant_pattern'],
+            'mixed',
+        )
+
+    def test_directional_taxon_network_page_filters_by_pattern(self):
+        response = self.client.get(reverse('core:directional-taxon-network'), {'pattern': 'opposite_direction'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Directional Taxon Network')
+        self.assertEqual(response.context['graph_data']['summary']['edge_count'], 1)
+        self.assertEqual(response.context['graph_data']['summary']['opposite_direction_edge_count'], 1)
+        self.assertEqual(response.context['graph_data']['summary']['mixed_edge_count'], 0)
+
+    def test_directional_taxon_network_page_groups_by_rank(self):
+        response = self.client.get(reverse('core:directional-taxon-network'), {'group_rank': 'genus'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['graph_data']['summary']['grouping_rank'], 'genus')
+        labels = {node['data']['label'] for node in response.context['graph_data']['nodes']}
+        self.assertIn('Blautia', labels)
+        self.assertIn('Roseburia', labels)
+        self.assertIn('Bacteroides', labels)
 
 
 class StaffHomeViewTests(TestCase):

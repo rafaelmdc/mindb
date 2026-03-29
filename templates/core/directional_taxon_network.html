@@ -1,0 +1,484 @@
+{% extends "base.html" %}
+
+{% block title %}Directional Taxon Network{% endblock %}
+{% block body_class %}graph-page{% endblock %}
+
+{% block content %}
+<div class="page-intro d-flex justify-content-between align-items-end mb-4">
+  <div>
+    <h1 class="mb-1">Directional Taxon Network</h1>
+    <p class="text-secondary mb-0">
+      Explore repeated same-direction and opposite-direction taxon patterns derived from shared qualitative comparison contexts.
+    </p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{% url 'database:qualitativefinding-list' %}">Open qualitative browser</a>
+</div>
+
+<form method="get" class="card card-body shadow-sm filter-card mb-4">
+  <div class="row g-3">
+    <div class="col-md-3">
+      <label class="form-label" for="id_study">Study</label>
+      <select class="form-select" id="id_study" name="study">
+        <option value="">All studies</option>
+        {% for study in studies %}
+          <option value="{{ study.pk }}" {% if current_study == study.pk|stringformat:"s" %}selected{% endif %}>{{ study.title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="id_group_rank">Taxon level</label>
+      <select class="form-select" id="id_group_rank" name="group_rank">
+        {% for value, label in grouping_rank_choices %}
+          <option value="{{ value }}" {% if current_group_rank == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="id_pattern">Pattern</label>
+      <select class="form-select" id="id_pattern" name="pattern">
+        {% for value, label in pattern_choices %}
+          <option value="{{ value }}" {% if current_pattern == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="id_min_support">Minimum support</label>
+      <input class="form-control" id="id_min_support" type="number" name="min_support" min="1" value="{{ current_min_support }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" for="id_branch">Branch</label>
+      <select class="form-select" id="id_branch" name="branch">
+        <option value="">All branches</option>
+        {% for taxon in branch_taxa %}
+          <option value="{{ taxon.pk }}" {% if current_branch == taxon.pk|stringformat:"s" %}selected{% endif %}>{{ taxon.scientific_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="id_disease">Disease query</label>
+      <input class="form-control" id="id_disease" type="text" name="disease" value="{{ current_disease }}" placeholder="Condition or target group">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="id_taxon">Taxon query</label>
+      <input class="form-control" id="id_taxon" type="text" name="taxon" value="{{ current_taxon }}" placeholder="Scientific name or rank">
+    </div>
+  </div>
+  <div class="mt-3 d-flex gap-2">
+    <button class="btn btn-primary" type="submit">Apply</button>
+    <a class="btn btn-outline-secondary" href="{% url 'core:directional-taxon-network' %}">Reset</a>
+  </div>
+</form>
+
+<div class="row g-4 mb-4">
+  <div class="col-md-3">
+    <div class="card shadow-sm metric-card">
+      <div class="card-body">
+        <p class="text-uppercase text-secondary small mb-2">Taxa</p>
+        <p class="display-6 mb-0">{{ graph_data.summary.node_count }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm metric-card">
+      <div class="card-body">
+        <p class="text-uppercase text-secondary small mb-2">Edges</p>
+        <p class="display-6 mb-0">{{ graph_data.summary.edge_count }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm metric-card">
+      <div class="card-body">
+        <p class="text-uppercase text-secondary small mb-2">Support Events</p>
+        <p class="display-6 mb-0">{{ graph_data.summary.total_support_count }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm metric-card">
+      <div class="card-body">
+        <p class="text-uppercase text-secondary small mb-2">Studies</p>
+        <p class="display-6 mb-0">{{ graph_data.summary.study_count }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-md-4">
+    <div class="card shadow-sm metric-card">
+      <div class="card-body">
+        <p class="text-uppercase text-secondary small mb-2">Same-direction edges</p>
+        <p class="display-6 mb-0">{{ graph_data.summary.same_direction_edge_count }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card shadow-sm metric-card">
+      <div class="card-body">
+        <p class="text-uppercase text-secondary small mb-2">Opposite-direction edges</p>
+        <p class="display-6 mb-0">{{ graph_data.summary.opposite_direction_edge_count }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card shadow-sm metric-card">
+      <div class="card-body">
+        <p class="text-uppercase text-secondary small mb-2">Mixed edges</p>
+        <p class="display-6 mb-0">{{ graph_data.summary.mixed_edge_count }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if graph_data.summary.skipped_rollup_count %}
+  <div class="alert alert-secondary empty-state mb-4">
+    {{ graph_data.summary.skipped_rollup_count }} finding{{ graph_data.summary.skipped_rollup_count|pluralize }} omitted because no ancestor exists at the selected rank.
+  </div>
+{% endif %}
+
+{% if graph_data.summary.edge_count %}
+  <div class="card shadow-sm graph-shell mb-4">
+    <div class="card-body">
+      <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
+        <div>
+          <h2 class="h5 mb-1">Interactive Network</h2>
+          <p class="text-secondary mb-0">
+            Grouped at the <strong>{{ current_group_rank }}</strong> level{% if current_branch_taxon %} within the <strong>{{ current_branch_taxon.scientific_name }}</strong> branch{% endif %}. Edge colors summarize repeated same-direction, opposite-direction, or mixed comparison-local patterns. Opposite-direction edges render in red, and symmetric arrowheads show the pair relationship without implying causality.
+          </p>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm align-self-start align-self-lg-auto" type="button" id="graph-reset-focus">
+          Clear focus
+        </button>
+      </div>
+      <div class="graph-stage">
+        <div id="graph-canvas" style="height: 1100px; width: 100%;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm data-shell">
+    <div class="card-body">
+      <h2 class="h5">Current graph payload</h2>
+      <p class="text-secondary">
+        Edges aggregate repeated taxon pair patterns from shared comparison contexts. This is exploratory and should not be interpreted as direct biological interaction.
+      </p>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead>
+            <tr>
+              <th>Taxon A</th>
+              <th>Taxon B</th>
+              <th>Dominant pattern</th>
+              <th>Same</th>
+              <th>Opposite</th>
+              <th>Comparisons</th>
+              <th>Studies</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for edge in graph_data.edges %}
+              <tr>
+                <td>{{ edge.data.source_label }}</td>
+                <td>{{ edge.data.target_label }}</td>
+                <td>{{ edge.data.dominant_pattern|cut:"_"|title }}</td>
+                <td>{{ edge.data.same_direction_count }}</td>
+                <td>{{ edge.data.opposite_direction_count }}</td>
+                <td>{{ edge.data.comparison_count }}</td>
+                <td>{{ edge.data.study_count }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% else %}
+  <div class="alert alert-secondary empty-state mb-0">
+    No directional taxon relationships matched the current filters, so no graph could be generated.
+  </div>
+{% endif %}
+
+<div class="alert alert-warning mt-4 mb-0">
+  This view summarizes recurring qualitative direction patterns from curated findings. It is intended for exploration and should not be interpreted as causal, mechanistic, or statistical evidence of direct taxon-taxon interaction.
+</div>
+
+{{ graph_data|json_script:"graph-data" }}
+<script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+{% block extra_js %}
+<script>
+  const graphElement = document.getElementById('graph-canvas');
+  if (graphElement) {
+    const graphData = JSON.parse(document.getElementById('graph-data').textContent);
+    const elements = [...graphData.nodes, ...graphData.edges];
+
+    const cy = cytoscape({
+      container: graphElement,
+      elements,
+      layout: { name: 'preset' },
+      minZoom: 0.35,
+      maxZoom: 2.5,
+      wheelSensitivity: 0.18,
+      style: [
+        {
+          selector: 'node',
+          style: {
+            'background-color': '#0f766e',
+            'label': '',
+            'border-width': 2,
+            'border-color': '#f8fafc',
+            'width': 'mapData(degree, 0, 10, 16, 30)',
+            'height': 'mapData(degree, 0, 10, 16, 30)',
+          }
+        },
+        {
+          selector: 'edge[dominant_pattern = "same_direction"]',
+          style: {
+            'line-color': '#0f766e',
+            'source-arrow-shape': 'triangle',
+            'target-arrow-shape': 'triangle',
+            'source-arrow-color': '#0f766e',
+            'target-arrow-color': '#0f766e',
+            'arrow-scale': 0.8,
+            'width': 'mapData(total_support, 1, 6, 1.8, 6)',
+            'opacity': 0.66
+          }
+        },
+        {
+          selector: 'edge[dominant_pattern = "opposite_direction"]',
+          style: {
+            'line-color': '#dc3545',
+            'source-arrow-shape': 'triangle',
+            'target-arrow-shape': 'triangle',
+            'source-arrow-color': '#dc3545',
+            'target-arrow-color': '#dc3545',
+            'arrow-scale': 0.8,
+            'width': 'mapData(total_support, 1, 6, 1.8, 6)',
+            'opacity': 0.72
+          }
+        },
+        {
+          selector: 'edge[dominant_pattern = "mixed"]',
+          style: {
+            'line-color': '#64748b',
+            'line-style': 'dashed',
+            'source-arrow-shape': 'triangle',
+            'target-arrow-shape': 'triangle',
+            'source-arrow-color': '#64748b',
+            'target-arrow-color': '#64748b',
+            'arrow-scale': 0.75,
+            'width': 'mapData(total_support, 1, 6, 1.8, 6)',
+            'opacity': 0.62
+          }
+        },
+        {
+          selector: '.faded',
+          style: {
+            'opacity': 0.08,
+            'text-opacity': 0.12,
+          }
+        },
+        {
+          selector: 'node.focused',
+          style: {
+            'label': 'data(label)',
+            'border-width': 4,
+            'border-color': '#111827',
+            'color': '#0f1720',
+            'text-background-color': '#ffffff',
+            'text-background-opacity': 0.96,
+            'text-background-padding': '5px',
+            'text-wrap': 'wrap',
+            'text-max-width': 150,
+            'font-size': 11,
+            'font-weight': 800,
+            'text-valign': 'bottom',
+            'text-halign': 'center',
+            'text-margin-y': 10,
+            'min-zoomed-font-size': 10,
+            'opacity': 1,
+            'text-opacity': 1,
+            'z-index': 9999,
+          }
+        },
+        {
+          selector: 'node.context',
+          style: {
+            'label': 'data(label)',
+            'border-width': 3,
+            'border-color': '#475569',
+            'color': '#0f1720',
+            'text-background-color': '#ffffff',
+            'text-background-opacity': 0.96,
+            'text-background-padding': '5px',
+            'text-wrap': 'wrap',
+            'text-max-width': 140,
+            'font-size': 10,
+            'font-weight': 700,
+            'text-valign': 'bottom',
+            'text-halign': 'center',
+            'text-margin-y': 10,
+            'min-zoomed-font-size': 10,
+            'opacity': 1,
+            'text-opacity': 1,
+          }
+        },
+        {
+          selector: 'edge.focused',
+          style: {
+            'opacity': 0.95,
+            'width': 'mapData(total_support, 1, 6, 4, 10)',
+            'z-index': 9998,
+          }
+        }
+      ]
+    });
+
+    const spreadDenseComponent = (component, minimumDistance, iterations = 18) => {
+      const nodes = component.nodes().toArray();
+      if (nodes.length < 2) {
+        return;
+      }
+
+      for (let iteration = 0; iteration < iterations; iteration += 1) {
+        for (let leftIndex = 0; leftIndex < nodes.length; leftIndex += 1) {
+          for (let rightIndex = leftIndex + 1; rightIndex < nodes.length; rightIndex += 1) {
+            const leftNode = nodes[leftIndex];
+            const rightNode = nodes[rightIndex];
+            const dx = rightNode.position('x') - leftNode.position('x');
+            const dy = rightNode.position('y') - leftNode.position('y');
+            let distance = Math.sqrt((dx * dx) + (dy * dy));
+
+            if (distance >= minimumDistance) {
+              continue;
+            }
+
+            if (distance < 0.001) {
+              distance = 0.001;
+            }
+
+            const overlap = (minimumDistance - distance) / 2;
+            const unitX = dx / distance;
+            const unitY = dy / distance;
+            const pushX = unitX * overlap;
+            const pushY = unitY * overlap;
+
+            leftNode.position({
+              x: leftNode.position('x') - pushX,
+              y: leftNode.position('y') - pushY,
+            });
+            rightNode.position({
+              x: rightNode.position('x') + pushX,
+              y: rightNode.position('y') + pushY,
+            });
+          }
+        }
+      }
+    };
+
+    const components = cy.elements().components().sort((left, right) => right.nodes().length - left.nodes().length);
+    const maxRowWidth = 2200;
+    const componentGap = 220;
+    let cursorX = 0;
+    let cursorY = 0;
+    let rowHeight = 0;
+
+    components.forEach((component) => {
+      const nodeCount = Math.max(component.nodes().length, 1);
+      const edgeCount = component.edges().length;
+      const maxUndirectedEdges = nodeCount > 1 ? (nodeCount * (nodeCount - 1)) / 2 : 0;
+      const density = maxUndirectedEdges ? edgeCount / maxUndirectedEdges : 0;
+      component.layout({
+        name: 'cose',
+        fit: false,
+        animate: false,
+        randomize: true,
+        padding: 40,
+        nodeRepulsion: Math.max(260000, nodeCount * 26000, Math.round(220000 + (density * 380000))),
+        idealEdgeLength: Math.max(150, Math.round(170 + (density * 120) - Math.min(nodeCount, 24))),
+        edgeElasticity: 90,
+        gravity: 0.1,
+        numIter: 2200,
+        initialTemp: 140,
+      }).run();
+
+      if (nodeCount > 2) {
+        const centroid = component.nodes().reduce(
+          (accumulator, node) => {
+            accumulator.x += node.position('x');
+            accumulator.y += node.position('y');
+            return accumulator;
+          },
+          {x: 0, y: 0},
+        );
+        centroid.x /= nodeCount;
+        centroid.y /= nodeCount;
+
+        const spreadFactor = Math.min(2.35, 1.12 + (density * 0.95));
+        component.nodes().positions((node) => ({
+          x: centroid.x + ((node.position('x') - centroid.x) * spreadFactor),
+          y: centroid.y + ((node.position('y') - centroid.y) * spreadFactor),
+        }));
+      }
+
+      spreadDenseComponent(
+        component,
+        Math.round(38 + (density * 52) + Math.min(nodeCount, 12)),
+        Math.min(28, 12 + nodeCount),
+      );
+
+      const bounds = component.nodes().boundingBox({
+        includeLabels: false,
+        includeOverlays: false,
+      });
+      const boxWidth = Math.max(bounds.w, 140);
+      const boxHeight = Math.max(bounds.h, 140);
+
+      if ((cursorX + boxWidth) > maxRowWidth && cursorX > 0) {
+        cursorX = 0;
+        cursorY += rowHeight + componentGap;
+        rowHeight = 0;
+      }
+
+      const shiftX = cursorX - bounds.x1;
+      const shiftY = cursorY - bounds.y1;
+      component.nodes().positions((node) => ({
+        x: node.position('x') + shiftX,
+        y: node.position('y') + shiftY,
+      }));
+
+      cursorX += boxWidth + componentGap;
+      rowHeight = Math.max(rowHeight, boxHeight);
+    });
+
+    cy.fit(cy.elements(), 80);
+
+    const resetFocus = () => {
+      cy.elements().removeClass('faded focused context');
+    };
+
+    cy.on('tap', 'node', (event) => {
+      const node = event.target;
+      const neighborhood = node.closedNeighborhood();
+      const contextNodes = neighborhood.nodes();
+
+      cy.elements().addClass('faded');
+      node.removeClass('faded').addClass('focused');
+      contextNodes.not(node).removeClass('faded').addClass('context');
+      neighborhood.edges().removeClass('faded').addClass('focused');
+    });
+
+    cy.on('tap', (event) => {
+      if (event.target === cy) {
+        resetFocus();
+      }
+    });
+
+    const resetButton = document.getElementById('graph-reset-focus');
+    if (resetButton) {
+      resetButton.addEventListener('click', resetFocus);
+    }
+  }
+</script>
+{% endblock %}
+{% endblock %}
