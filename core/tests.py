@@ -48,7 +48,7 @@ class HomeViewTests(TestCase):
         self.assertContains(response, 'Comparisons')
         self.assertContains(response, 'Qualitative')
         self.assertContains(response, reverse('database:browser-home'))
-        self.assertContains(response, reverse('core:graph'))
+        self.assertContains(response, reverse('core:disease-network'))
         self.assertContains(response, reverse('core:staff-home'))
 
 
@@ -161,7 +161,7 @@ class GraphViewTests(TestCase):
                 )
 
     def test_graph_page_renders_summary(self):
-        response = self.client.get(reverse('core:graph'))
+        response = self.client.get(reverse('core:disease-network'))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Disease Network')
@@ -173,7 +173,7 @@ class GraphViewTests(TestCase):
 
     def test_graph_page_filters_by_direction(self):
         response = self.client.get(
-            reverse('core:graph'),
+            reverse('core:disease-network'),
             {'direction': QualitativeFinding.Direction.ENRICHED},
         )
 
@@ -184,7 +184,7 @@ class GraphViewTests(TestCase):
         self.assertEqual(response.context['graph_data']['summary']['depleted_taxon_count'], 0)
 
     def test_graph_page_groups_findings_by_rank(self):
-        response = self.client.get(reverse('core:graph'), {'group_rank': 'genus'})
+        response = self.client.get(reverse('core:disease-network'), {'group_rank': 'genus'})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['graph_data']['summary']['grouping_rank'], 'genus')
@@ -196,7 +196,7 @@ class GraphViewTests(TestCase):
         self.assertNotIn('Faecalibacterium prausnitzii', node_labels)
 
     def test_graph_page_filters_by_taxonomic_branch(self):
-        response = self.client.get(reverse('core:graph'), {'branch': self.family.pk, 'group_rank': 'genus'})
+        response = self.client.get(reverse('core:disease-network'), {'branch': self.family.pk, 'group_rank': 'genus'})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['graph_data']['summary']['edge_count'], 2)
@@ -206,18 +206,50 @@ class GraphViewTests(TestCase):
         self.assertNotIn('Bacteroides', node_labels)
 
     def test_graph_page_reports_skipped_rollups_when_rank_is_missing(self):
-        response = self.client.get(reverse('core:graph'), {'group_rank': 'phylum'})
+        response = self.client.get(reverse('core:disease-network'), {'group_rank': 'phylum'})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['graph_data']['summary']['skipped_rollup_count'], 3)
         self.assertContains(response, '3 findings omitted because no ancestor exists at the selected rank.')
 
     def test_graph_page_accepts_explicit_engine_selection(self):
-        response = self.client.get(reverse('core:graph'), {'engine': 'echarts'})
+        response = self.client.get(reverse('core:disease-network'), {'engine': 'echarts'})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['current_engine'], 'echarts')
         self.assertContains(response, 'echarts.min.js')
+        self.assertContains(response, 'name="echarts_repulsion"')
+        self.assertContains(response, 'name="echarts_edge_length"')
+        self.assertContains(response, 'name="echarts_gravity"')
+        self.assertNotContains(response, 'name="cytoscape_repulsion_scale"')
+
+    def test_graph_page_shows_cytoscape_layout_controls_by_default(self):
+        response = self.client.get(reverse('core:disease-network'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="cytoscape_repulsion_scale"')
+        self.assertContains(response, 'name="cytoscape_edge_length_scale"')
+        self.assertContains(response, 'name="cytoscape_gravity"')
+        self.assertNotContains(response, 'name="echarts_repulsion"')
+
+    def test_graph_page_preserves_custom_layout_values(self):
+        response = self.client.get(
+            reverse('core:disease-network'),
+            {
+                'engine': 'echarts',
+                'echarts_repulsion': '1350',
+                'echarts_edge_length': '280',
+                'echarts_gravity': '0.06',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['layout_settings']['echarts_repulsion'], 1350.0)
+        self.assertEqual(response.context['layout_settings']['echarts_edge_length'], 280.0)
+        self.assertEqual(response.context['layout_settings']['echarts_gravity'], 0.06)
+        self.assertContains(response, 'value="1350.0"')
+        self.assertContains(response, 'value="280.0"')
+        self.assertContains(response, 'value="0.06"')
 
 
 class DirectionalTaxonNetworkTests(TestCase):
@@ -342,16 +374,16 @@ class DirectionalTaxonNetworkTests(TestCase):
         )
 
     def test_directional_taxon_network_page_filters_by_pattern(self):
-        response = self.client.get(reverse('core:directional-taxon-network'), {'pattern': 'opposite_direction'})
+        response = self.client.get(reverse('core:co-abundance-network'), {'pattern': 'opposite_direction'})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Directional Taxon Network')
+        self.assertContains(response, 'Co-abundance Taxon Network')
         self.assertEqual(response.context['graph_data']['summary']['edge_count'], 1)
         self.assertEqual(response.context['graph_data']['summary']['opposite_direction_edge_count'], 1)
         self.assertEqual(response.context['graph_data']['summary']['mixed_edge_count'], 0)
 
     def test_directional_taxon_network_page_groups_by_rank(self):
-        response = self.client.get(reverse('core:directional-taxon-network'), {'group_rank': 'genus'})
+        response = self.client.get(reverse('core:co-abundance-network'), {'group_rank': 'genus'})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['graph_data']['summary']['grouping_rank'], 'genus')
@@ -361,7 +393,7 @@ class DirectionalTaxonNetworkTests(TestCase):
         self.assertIn('Bacteroides', labels)
 
     def test_directional_taxon_network_page_accepts_explicit_engine_selection(self):
-        response = self.client.get(reverse('core:directional-taxon-network'), {'engine': 'echarts'})
+        response = self.client.get(reverse('core:co-abundance-network'), {'engine': 'echarts'})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['current_engine'], 'echarts')
@@ -372,7 +404,7 @@ class DirectionalTaxonNetworkTests(TestCase):
         self.assertNotContains(response, 'name="cytoscape_repulsion_scale"')
 
     def test_directional_taxon_network_page_shows_cytoscape_layout_controls_by_default(self):
-        response = self.client.get(reverse('core:directional-taxon-network'))
+        response = self.client.get(reverse('core:co-abundance-network'))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'name="cytoscape_repulsion_scale"')
@@ -382,7 +414,7 @@ class DirectionalTaxonNetworkTests(TestCase):
 
     def test_directional_taxon_network_page_preserves_custom_layout_values(self):
         response = self.client.get(
-            reverse('core:directional-taxon-network'),
+            reverse('core:co-abundance-network'),
             {
                 'engine': 'echarts',
                 'echarts_repulsion': '1450',

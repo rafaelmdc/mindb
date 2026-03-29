@@ -471,11 +471,16 @@ body {
   border: 1px solid rgba(19, 34, 37, 0.08);
 }
 
+#graph-canvas.graph-canvas-frame {
+  width: 100%;
+  height: clamp(480px, 62vw, 760px);
+}
+
 .graph-stage {
   position: relative;
-  overflow: auto;
-  padding-top: 2.5rem;
-  padding-bottom: 0.5rem;
+  overflow: visible;
+  padding-top: 0;
+  padding-bottom: 0.25rem;
 }
 
 .graph-axis {
@@ -521,5 +526,9 @@ body {
 
   .navbar-collapse {
     margin-top: 0.9rem;
+  }
+
+  #graph-canvas.graph-canvas-frame {
+    height: clamp(380px, 78vw, 560px);
   }
 }

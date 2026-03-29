@@ -9,8 +9,10 @@ from database.models import Comparison, Group, QualitativeFinding, QuantitativeF
 
 from .graph_payloads import GRAPH_GROUPING_CHOICES, build_disease_graph, build_directional_taxon_network
 from .graph_renderers import (
+    DISEASE_LAYOUT_CONTROL_SPECS,
     DIRECTIONAL_LAYOUT_CONTROL_SPECS,
     GRAPH_ENGINE_CHOICES,
+    build_disease_layout_settings,
     build_directional_layout_settings,
     normalize_graph_engine,
 )
@@ -155,6 +157,8 @@ class GraphView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         grouping_rank = self.get_grouping_rank()
+        current_engine = normalize_graph_engine(self.request.GET.get('engine', '').strip() or 'cytoscape')
+        layout_settings = build_disease_layout_settings(self.request.GET)
         graph_data = build_disease_graph(self.get_queryset(), grouping_rank=grouping_rank)
         branch_id = self.request.GET.get('branch', '').strip()
         context['graph_data'] = graph_data
@@ -162,8 +166,16 @@ class GraphView(TemplateView):
         context['direction_choices'] = QualitativeFinding.Direction.choices
         context['grouping_rank_choices'] = GRAPH_GROUPING_CHOICES
         context['engine_choices'] = GRAPH_ENGINE_CHOICES
+        context['active_layout_controls'] = [
+            {
+                **spec,
+                'value': layout_settings[spec['name']],
+            }
+            for spec in DISEASE_LAYOUT_CONTROL_SPECS[current_engine]
+        ]
+        context['layout_settings'] = layout_settings
         context['branch_taxa'] = Taxon.objects.order_by('scientific_name')[:200]
-        context['current_engine'] = normalize_graph_engine(self.request.GET.get('engine', '').strip() or 'cytoscape')
+        context['current_engine'] = current_engine
         context['current_study'] = self.request.GET.get('study', '').strip()
         context['current_direction'] = self.request.GET.get('direction', '').strip()
         context['current_disease'] = self.request.GET.get('disease', '').strip() or self.request.GET.get('comparison', '').strip()

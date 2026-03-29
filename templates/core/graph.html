@@ -68,52 +68,32 @@
       <input class="form-control" id="id_taxon" type="text" name="taxon" value="{{ current_taxon }}" placeholder="Scientific name or rank">
     </div>
   </div>
+  <div class="row g-3 mt-1">
+    {% for control in active_layout_controls %}
+      <div class="col-md-4">
+        <label class="form-label d-flex justify-content-between align-items-center" for="id_{{ control.name }}">
+          <span>{{ control.label }}</span>
+          <span class="text-secondary small" data-range-value-for="{{ control.name }}">{{ control.value }}</span>
+        </label>
+        <input
+          class="form-range"
+          id="id_{{ control.name }}"
+          type="range"
+          name="{{ control.name }}"
+          min="{{ control.minimum }}"
+          max="{{ control.maximum }}"
+          step="{{ control.step }}"
+          value="{{ control.value }}"
+          data-range-input
+        >
+      </div>
+    {% endfor %}
+  </div>
   <div class="mt-3 d-flex gap-2">
     <button class="btn btn-primary" type="submit">Apply</button>
-    <a class="btn btn-outline-secondary" href="{% url 'core:graph' %}?engine={{ current_engine }}">Reset</a>
+    <a class="btn btn-outline-secondary" href="{% url 'core:disease-network' %}?engine={{ current_engine }}">Reset</a>
   </div>
 </form>
-
-<div class="row g-4 mb-4">
-  <div class="col-md-3">
-    <div class="card shadow-sm metric-card">
-      <div class="card-body">
-        <p class="text-uppercase text-secondary small mb-2">Diseases</p>
-        <p class="display-6 mb-0">{{ graph_data.summary.disease_count }}</p>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card shadow-sm metric-card">
-      <div class="card-body">
-        <p class="text-uppercase text-secondary small mb-2">Enriched {{ current_group_rank|title }}</p>
-        <p class="display-6 mb-0">{{ graph_data.summary.enriched_taxon_count }}</p>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card shadow-sm metric-card">
-      <div class="card-body">
-        <p class="text-uppercase text-secondary small mb-2">Depleted {{ current_group_rank|title }}</p>
-        <p class="display-6 mb-0">{{ graph_data.summary.depleted_taxon_count }}</p>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card shadow-sm metric-card">
-      <div class="card-body">
-        <p class="text-uppercase text-secondary small mb-2">Findings</p>
-        <p class="display-6 mb-0">{{ graph_data.summary.finding_count }}</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-{% if graph_data.summary.skipped_rollup_count %}
-  <div class="alert alert-secondary empty-state mb-4">
-    {{ graph_data.summary.skipped_rollup_count }} finding{{ graph_data.summary.skipped_rollup_count|pluralize }} omitted because no ancestor exists at the selected rank.
-  </div>
-{% endif %}
 
 {% if graph_data.summary.edge_count %}
   <div class="card shadow-sm graph-shell mb-4">
@@ -122,7 +102,7 @@
         <div>
           <h2 class="h5 mb-1">Interactive Network</h2>
           <p class="text-secondary mb-0">
-            Grouped at the <strong>{{ current_group_rank }}</strong> level{% if current_branch_taxon %} within the <strong>{{ current_branch_taxon.scientific_name }}</strong> branch{% endif %}. Switch engines explicitly to compare fixed-position and alternative rendering behavior.
+            Grouped at the <strong>{{ current_group_rank }}</strong> level{% if current_branch_taxon %} within the <strong>{{ current_branch_taxon.scientific_name }}</strong> branch{% endif %}. The left, center, and right columns act as starting anchors, and the selected engine then relaxes the layout around them.
           </p>
         </div>
         <button class="btn btn-outline-secondary btn-sm align-self-start align-self-lg-auto" type="button" id="graph-reset-focus">
@@ -130,10 +110,48 @@
         </button>
       </div>
       <div class="graph-stage">
-        <div class="graph-axis graph-axis-left">Enriched {{ current_group_rank }}</div>
-        <div class="graph-axis graph-axis-center">Diseases</div>
-        <div class="graph-axis graph-axis-right">Depleted {{ current_group_rank }}</div>
-        <div id="graph-canvas" style="height: {{ graph_data.summary.layout_height }}px; width: {{ graph_data.summary.layout_width }}px;"></div>
+        <div id="graph-canvas" class="graph-canvas-frame"></div>
+      </div>
+    </div>
+  </div>
+
+  {% if graph_data.summary.skipped_rollup_count %}
+    <div class="alert alert-secondary empty-state mb-4">
+      {{ graph_data.summary.skipped_rollup_count }} finding{{ graph_data.summary.skipped_rollup_count|pluralize }} omitted because no ancestor exists at the selected rank.
+    </div>
+  {% endif %}
+
+  <div class="row g-4 mb-4">
+    <div class="col-md-3">
+      <div class="card shadow-sm metric-card">
+        <div class="card-body">
+          <p class="text-uppercase text-secondary small mb-2">Diseases</p>
+          <p class="display-6 mb-0">{{ graph_data.summary.disease_count }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm metric-card">
+        <div class="card-body">
+          <p class="text-uppercase text-secondary small mb-2">Enriched {{ current_group_rank|title }}</p>
+          <p class="display-6 mb-0">{{ graph_data.summary.enriched_taxon_count }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm metric-card">
+        <div class="card-body">
+          <p class="text-uppercase text-secondary small mb-2">Depleted {{ current_group_rank|title }}</p>
+          <p class="display-6 mb-0">{{ graph_data.summary.depleted_taxon_count }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm metric-card">
+        <div class="card-body">
+          <p class="text-uppercase text-secondary small mb-2">Findings</p>
+          <p class="display-6 mb-0">{{ graph_data.summary.finding_count }}</p>
+        </div>
       </div>
     </div>
   </div>
@@ -176,6 +194,12 @@
   <div class="alert alert-secondary empty-state mb-0">
     No qualitative findings matched the current filters, so no graph could be generated.
   </div>
+
+  {% if graph_data.summary.skipped_rollup_count %}
+    <div class="alert alert-secondary empty-state mt-4 mb-0">
+      {{ graph_data.summary.skipped_rollup_count }} finding{{ graph_data.summary.skipped_rollup_count|pluralize }} omitted because no ancestor exists at the selected rank.
+    </div>
+  {% endif %}
 {% endif %}
 
 {{ graph_data|json_script:"graph-data" }}
@@ -191,9 +215,32 @@
   if (graphElement) {
     const graphData = JSON.parse(document.getElementById('graph-data').textContent);
     const chart = echarts.init(graphElement);
-    const nodes = graphData.nodes.map((node) => {
+    const echartsRepulsion = {{ layout_settings.echarts_repulsion }};
+    const echartsEdgeLength = {{ layout_settings.echarts_edge_length }};
+    const echartsGravity = {{ layout_settings.echarts_gravity }};
+    const echartsLabelZoomThreshold = 0.72;
+    let labelsVisible = true;
+    let focusedNodeId = null;
+    const buildFocusedNodeIds = () => {
+      if (!focusedNodeId) {
+        return new Set();
+      }
+
+      const focusedIds = new Set([focusedNodeId]);
+      graphData.edges.forEach((edge) => {
+        if (edge.data.source === focusedNodeId) {
+          focusedIds.add(edge.data.target);
+        }
+        if (edge.data.target === focusedNodeId) {
+          focusedIds.add(edge.data.source);
+        }
+      });
+      return focusedIds;
+    };
+    const buildNodes = (showTaxonLabels, focusedNodeIds) => graphData.nodes.map((node) => {
       const data = node.data;
       const isDisease = data.node_type === 'disease';
+      const isFocused = focusedNodeIds.has(data.id);
       return {
         id: data.id,
         name: data.label,
@@ -201,46 +248,83 @@
         y: node.position.y,
         draggable: true,
         symbolSize: isDisease ? Math.max(44, Math.min(74, 40 + (data.degree * 6))) : Math.max(18, Math.min(34, 16 + (data.degree * 2))),
-        itemStyle: {
-          color: isDisease ? '#495057' : (data.column === 'enriched' ? '#dc3545' : '#0d6efd'),
+        label: {
+          show: isDisease || showTaxonLabels || isFocused,
+          color: isDisease ? '#f8fafc' : '#0f1720',
+          backgroundColor: 'rgba(255,255,255,0)',
+          fontSize: isDisease ? 12 : 11,
+          fontWeight: isDisease ? 800 : 600,
+          width: isDisease ? 130 : 120,
+          overflow: 'break',
+          position: isDisease ? 'inside' : 'right',
+          lineHeight: isDisease ? 14 : 12,
+          textBorderColor: isDisease ? 'rgba(15,23,32,0.72)' : 'rgba(248,250,252,0.92)',
+          textBorderWidth: isDisease ? 1.2 : 3,
+          textShadowColor: isDisease ? 'rgba(15,23,32,0)' : 'rgba(248,250,252,0.75)',
+          textShadowBlur: isDisease ? 0 : 6,
+        },
+        itemStyle: isFocused ? {
+          ...{
+            color: isDisease ? '#334155' : (data.column === 'enriched' ? '#dc3545' : '#0d6efd'),
+            borderColor: '#f8fafc',
+            borderWidth: 2,
+          },
+          shadowBlur: 18,
+          shadowColor: 'rgba(15,23,32,0.28)',
+        } : {
+          color: isDisease ? '#334155' : (data.column === 'enriched' ? '#dc3545' : '#0d6efd'),
           borderColor: '#f8fafc',
           borderWidth: 2,
         },
-        label: {
-          show: true,
-          color: '#0f1720',
-          backgroundColor: 'rgba(255,255,255,0.94)',
-          padding: [4, 6],
-          borderRadius: 6,
-          fontSize: isDisease ? 12 : 11,
-          fontWeight: isDisease ? 700 : 600,
-          width: isDisease ? 130 : 120,
-          overflow: 'break',
-        },
       };
     });
-    const links = graphData.edges.map((edge) => ({
+    const buildLinks = (focusedNodeIds) => graphData.edges.map((edge) => ({
       source: edge.data.source,
       target: edge.data.target,
       value: edge.data.finding_count,
       lineStyle: {
         color: edge.data.column === 'enriched' ? '#dc3545' : '#0d6efd',
         width: Math.max(1.5, Math.min(6, edge.data.finding_count)),
-        opacity: 0.6,
+        opacity:
+          focusedNodeIds.size === 0
+            ? 0.6
+            : (focusedNodeIds.has(edge.data.source) && focusedNodeIds.has(edge.data.target) ? 0.9 : 0.12),
       },
       symbol: ['none', 'arrow'],
       symbolSize: 8,
     }));
+    const applyChartState = () => {
+      const focusedNodeIds = buildFocusedNodeIds();
+      chart.setOption({
+        series: [
+          {
+            data: buildNodes(labelsVisible, focusedNodeIds),
+            links: buildLinks(focusedNodeIds),
+          },
+        ],
+      });
+    };
     const option = {
       animation: false,
       tooltip: { trigger: 'item' },
       series: [
         {
           type: 'graph',
-          layout: 'none',
+          layout: 'force',
           roam: true,
-          data: nodes,
-          links,
+          draggable: true,
+          zoom: 1,
+          scaleLimit: {
+            min: 0.35,
+            max: 2.4,
+          },
+          data: buildNodes(labelsVisible, buildFocusedNodeIds()),
+          links: buildLinks(buildFocusedNodeIds()),
+          force: {
+            repulsion: echartsRepulsion,
+            edgeLength: [Math.round(echartsEdgeLength * 0.7), Math.round(echartsEdgeLength * 1.25)],
+            gravity: echartsGravity,
+          },
           emphasis: {
             focus: 'adjacency',
             lineStyle: {
@@ -252,10 +336,36 @@
       ]
     };
     chart.setOption(option);
+
+    const updateLabelVisibility = () => {
+      const series = chart.getOption().series?.[0];
+      const currentZoom = series && typeof series.zoom === 'number' ? series.zoom : 1;
+      const shouldShowLabels = currentZoom >= echartsLabelZoomThreshold;
+      if (shouldShowLabels === labelsVisible) {
+        return;
+      }
+
+      labelsVisible = shouldShowLabels;
+      applyChartState();
+    };
+
+    chart.on('graphRoam', updateLabelVisibility);
+    chart.on('graphroam', updateLabelVisibility);
+    chart.on('click', (params) => {
+      if (params.dataType !== 'node' || !params.data || !params.data.id) {
+        return;
+      }
+      focusedNodeId = focusedNodeId === params.data.id ? null : params.data.id;
+      applyChartState();
+    });
     window.addEventListener('resize', () => chart.resize());
     const resetButton = document.getElementById('graph-reset-focus');
     if (resetButton) {
-      resetButton.addEventListener('click', () => chart.dispatchAction({ type: 'downplay', seriesIndex: 0 }));
+      resetButton.addEventListener('click', () => {
+        focusedNodeId = null;
+        chart.dispatchAction({ type: 'downplay', seriesIndex: 0 });
+        applyChartState();
+      });
     }
   }
 </script>
@@ -265,11 +375,15 @@
   if (graphElement) {
     const graphData = JSON.parse(document.getElementById('graph-data').textContent);
     const elements = [...graphData.nodes, ...graphData.edges];
+    const initialPositions = new Map(graphData.nodes.map((node) => [node.data.id, node.position]));
+    const cytoscapeRepulsionScale = {{ layout_settings.cytoscape_repulsion_scale }};
+    const cytoscapeEdgeLengthScale = {{ layout_settings.cytoscape_edge_length_scale }};
+    const cytoscapeGravity = {{ layout_settings.cytoscape_gravity }};
 
     const cy = cytoscape({
       container: graphElement,
       elements,
-      layout: { name: 'preset', fit: true, padding: 96, animate: false },
+      layout: { name: 'preset', fit: false },
       minZoom: 0.45,
       maxZoom: 2.4,
       wheelSensitivity: 0.18,
@@ -277,21 +391,26 @@
         {
           selector: 'node[node_type = "disease"]',
           style: {
-            'background-color': '#495057',
+            'background-color': '#334155',
             'shape': 'round-rectangle',
             'label': 'data(label)',
-            'color': '#0f1720',
-            'text-background-color': '#ffffff',
-            'text-background-opacity': 0.96,
-            'text-background-padding': '6px',
+            'color': '#f8fafc',
             'text-wrap': 'wrap',
             'text-max-width': 120,
             'font-size': 12,
-            'font-weight': 700,
-            'border-width': 2,
-            'border-color': '#f8fafc',
-            'width': 'mapData(degree, 0, 10, 120, 170)',
-            'height': 'mapData(degree, 0, 10, 44, 68)',
+            'font-weight': 800,
+            'min-zoomed-font-size': 0,
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'border-width': 1.5,
+            'border-color': '#cbd5e1',
+            'width': 'mapData(degree, 0, 10, 132, 184)',
+            'height': 'mapData(degree, 0, 10, 52, 76)',
+            'shadow-blur': 18,
+            'shadow-color': '#0f1720',
+            'shadow-opacity': 0.18,
+            'shadow-offset-x': 0,
+            'shadow-offset-y': 8,
           }
         },
         {
@@ -300,13 +419,13 @@
             'background-color': '#dc3545',
             'label': 'data(label)',
             'color': '#0f1720',
-            'text-background-color': '#ffffff',
-            'text-background-opacity': 0.96,
-            'text-background-padding': '5px',
             'text-wrap': 'wrap',
             'text-max-width': 128,
             'font-size': 11,
             'font-weight': 600,
+            'min-zoomed-font-size': 9,
+            'text-outline-color': 'rgba(248,250,252,0.92)',
+            'text-outline-width': 3,
             'border-width': 2,
             'border-color': '#f8fafc',
             'width': 'mapData(degree, 0, 10, 22, 34)',
@@ -319,13 +438,13 @@
             'background-color': '#0d6efd',
             'label': 'data(label)',
             'color': '#0f1720',
-            'text-background-color': '#ffffff',
-            'text-background-opacity': 0.96,
-            'text-background-padding': '5px',
             'text-wrap': 'wrap',
             'text-max-width': 128,
             'font-size': 11,
             'font-weight': 600,
+            'min-zoomed-font-size': 9,
+            'text-outline-color': 'rgba(248,250,252,0.92)',
+            'text-outline-width': 3,
             'border-width': 2,
             'border-color': '#f8fafc',
             'width': 'mapData(degree, 0, 10, 22, 34)',
@@ -366,6 +485,8 @@
         {
           selector: 'node.focused',
           style: {
+            'label': 'data(label)',
+            'min-zoomed-font-size': 0,
             'border-width': 4,
             'border-color': '#111827',
             'opacity': 1,
@@ -376,6 +497,8 @@
         {
           selector: 'node.context',
           style: {
+            'label': 'data(label)',
+            'min-zoomed-font-size': 0,
             'border-width': 3,
             'border-color': '#475569',
             'opacity': 1,
@@ -392,6 +515,34 @@
         }
       ]
     });
+
+    cy.layout({
+      name: 'cose',
+      fit: false,
+      animate: false,
+      randomize: false,
+      padding: 72,
+      nodeRepulsion: Math.round(180000 * cytoscapeRepulsionScale),
+      idealEdgeLength: Math.round(170 * cytoscapeEdgeLengthScale),
+      edgeElasticity: 110,
+      gravity: cytoscapeGravity,
+      numIter: 1800,
+      initialTemp: 120,
+    }).run();
+
+    cy.nodes().positions((node) => {
+      const anchor = initialPositions.get(node.id());
+      if (!anchor) {
+        return node.position();
+      }
+
+      return {
+        x: (node.position('x') * 0.38) + (anchor.x * 0.62),
+        y: node.position('y'),
+      };
+    });
+
+    cy.fit(cy.elements(), 96);
 
     const resetFocus = () => {
       cy.elements().removeClass('faded focused context');
@@ -421,5 +572,15 @@
   }
 </script>
 {% endif %}
+<script>
+  document.querySelectorAll('[data-range-input]').forEach((input) => {
+    input.addEventListener('input', (event) => {
+      const valueTarget = document.querySelector(`[data-range-value-for="${event.target.name}"]`);
+      if (valueTarget) {
+        valueTarget.textContent = event.target.value;
+      }
+    });
+  });
+</script>
 {% endblock %}
 {% endblock %}
