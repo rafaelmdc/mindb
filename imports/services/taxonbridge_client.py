@@ -1,4 +1,4 @@
-"""Thin Django-facing adapter for the external taxonbridge package."""
+"""Thin Django-facing adapter for the external taxon-weaver package."""
 
 from functools import lru_cache
 from pathlib import Path
@@ -16,7 +16,7 @@ def get_taxonomy_resolver():
     try:
         from taxonomy_resolver import TaxonomyResolverService
     except ImportError as exc:
-        raise TaxonbridgeUnavailable('taxonbridge is not installed in the active environment.') from exc
+        raise TaxonbridgeUnavailable('taxon-weaver is not installed in the active environment.') from exc
 
     taxonomy_db_path = Path(getattr(settings, 'TAXONOMY_DB_PATH', '')).expanduser()
     if not taxonomy_db_path.exists():
@@ -31,7 +31,7 @@ def get_taxonomy_resolver():
 
 
 def resolve_taxon_name(name, level=None, *, allow_fuzzy=True):
-    """Resolve one taxon name using taxonbridge."""
+    """Resolve one taxon name using taxon-weaver."""
     from taxonomy_resolver import ResolveRequest
 
     resolver = get_taxonomy_resolver()

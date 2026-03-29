@@ -2,3 +2,4 @@ Django==6.0.1
 psycopg[binary]==3.2.10
 networkx==3.4.2
 openpyxl==3.1.5
+taxon-weaver @ git+https://github.com/rafaelmdc/taxon-weaver.git@dcb62969e971eb02b1122d0a2073c9da1952c265
