@@ -102,20 +102,32 @@
 {% if graph_data.summary.edge_count %}
   <div class="card shadow-sm graph-shell mb-4">
     <div class="card-body">
-      <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
-        <div>
+      <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-3">
+        <div class="flex-grow-1 pe-lg-3">
           <h2 class="h5 mb-1">Interactive Network</h2>
           <p class="text-secondary mb-0">
-            Grouped at the <strong>{{ current_group_rank }}</strong> level{% if current_branch_taxon %} within the <strong>{{ current_branch_taxon.scientific_name }}</strong> branch{% endif %}. Opposite-direction edges render in red, and the chosen engine is explicit so users can compare layouts directly.
+            Grouped at the <strong>{{ current_group_rank }}</strong> level{% if current_branch_taxon %} within the <strong>{{ current_branch_taxon.scientific_name }}</strong> branch{% endif %}. Opposite-direction edges render in red. Same-direction in green. Mixed are dotted.
           </p>
         </div>
-        <div class="d-flex flex-wrap gap-2 align-self-start align-self-lg-auto">
-          <button class="btn btn-outline-secondary btn-sm" type="button" id="graph-download-png">
-            Download PNG
-          </button>
-          <button class="btn btn-outline-secondary btn-sm" type="button" id="graph-download-svg">
-            Download SVG
-          </button>
+        <div class="d-flex flex-nowrap gap-2 align-self-start flex-shrink-0">
+          <div class="btn-group">
+            <button
+              class="btn btn-outline-secondary btn-sm dropdown-toggle"
+              type="button"
+              data-bs-toggle="dropdown"
+              aria-expanded="false"
+            >
+              Download
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li>
+                <button class="dropdown-item" type="button" id="graph-download-png">PNG</button>
+              </li>
+              <li>
+                <button class="dropdown-item" type="button" id="graph-download-svg">SVG</button>
+              </li>
+            </ul>
+          </div>
           <button class="btn btn-outline-secondary btn-sm" type="button" id="graph-reset-focus">
             Clear focus
           </button>
