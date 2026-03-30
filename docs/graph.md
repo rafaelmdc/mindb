@@ -80,6 +80,9 @@ The co-abundance graph is a derived taxon-pair pattern view.
 - pairs are generated from findings that appear in the same `Comparison`
 - qualitative directions are normalized into positive vs negative buckets
 - pair support is tracked as `same_direction`, `opposite_direction`, or `mixed`
+- users can switch between `leaf` support mode and `rolled_up` support mode
+- in `leaf` mode, edge strength is counted from underlying leaf-level pair support after rollup
+- in `rolled_up` mode, the graph uses the older grouped-pair-per-comparison support semantics
 - edges are aggregated across comparisons and optionally filtered by minimum support
 
 ### Co-abundance edge evidence
@@ -92,7 +95,7 @@ The edge-detail route:
 - receives the selected grouped taxon pair through `source_taxon` and `target_taxon`
 - rebuilds the filtered co-abundance context at request time
 - isolates the selected grouped-taxon edge
-- shows aggregate same-vs-opposite support counts
+- shows aggregate same-vs-opposite leaf-support counts plus comparison breadth
 - paginates supporting comparisons
 - paginates the exact `QualitativeFinding` rows that rolled up into the selected edge
 

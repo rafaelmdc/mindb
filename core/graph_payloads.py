@@ -13,6 +13,11 @@ GRAPH_GROUPING_CHOICES = (
     ('phylum', 'Phylum'),
 )
 GRAPH_GROUPING_RANKS = {value for value, _label in GRAPH_GROUPING_CHOICES}
+DIRECTIONAL_SUPPORT_MODE_CHOICES = (
+    ('leaf', 'Leaf-level'),
+    ('rolled_up', 'Rolled-up'),
+)
+DIRECTIONAL_SUPPORT_MODES = {value for value, _label in DIRECTIONAL_SUPPORT_MODE_CHOICES}
 POSITIVE_DIRECTIONS = {'enriched', 'increased'}
 NEGATIVE_DIRECTIONS = {'depleted', 'decreased'}
 
@@ -118,6 +123,16 @@ def _directional_edge_pattern(edge):
     return dominant_pattern, total_support
 
 
+def normalize_directional_support_mode(support_mode):
+    return support_mode if support_mode in DIRECTIONAL_SUPPORT_MODES else 'leaf'
+
+
+def _resolve_directional_support_counts(edge, support_mode):
+    if normalize_directional_support_mode(support_mode) == 'rolled_up':
+        return edge['same_direction_comparison_count'], edge['opposite_direction_comparison_count']
+    return edge['same_direction_count'], edge['opposite_direction_count']
+
+
 def _resolve_taxon_query_match_ids(findings, edge_map, taxon_query):
     taxon_query = (taxon_query or '').strip()
     if not taxon_query:
@@ -206,7 +221,7 @@ def _build_directional_edge_map(findings, grouping_rank, *, include_support_deta
             item.setdefault('findings', []).append(finding)
 
     edge_map = {}
-    total_support_count = 0
+    comparison_support_count = 0
 
     for comparison_data in per_comparison.values():
         comparison = comparison_data['comparison']
@@ -239,12 +254,16 @@ def _build_directional_edge_map(findings, grouping_rank, *, include_support_deta
                     {
                         'same_direction': False,
                         'opposite_direction': False,
+                        'same_direction_count': 0,
+                        'opposite_direction_count': 0,
                         'source_labels': set(),
                         'leaf_taxon_ids': set(),
                         'item_keys': set(),
                     },
                 )
+                pair_support_count = len(left_item['leaf_taxon_ids']) * len(right_item['leaf_taxon_ids'])
                 comparison_pair[pair_pattern] = True
+                comparison_pair[f'{pair_pattern}_count'] += pair_support_count
                 comparison_pair['source_labels'].update(left_item['sources'])
                 comparison_pair['source_labels'].update(right_item['sources'])
                 comparison_pair['leaf_taxon_ids'].update(left_item['leaf_taxon_ids'])
@@ -265,6 +284,8 @@ def _build_directional_edge_map(findings, grouping_rank, *, include_support_deta
                     'target_taxon': target_taxon,
                     'same_direction_count': 0,
                     'opposite_direction_count': 0,
+                    'same_direction_comparison_count': 0,
+                    'opposite_direction_comparison_count': 0,
                     'study_ids': set(),
                     'source_labels': set(),
                     'comparison_labels': set(),
@@ -276,12 +297,14 @@ def _build_directional_edge_map(findings, grouping_rank, *, include_support_deta
             if include_support_details:
                 edge.setdefault('comparison_supports', [])
 
+            edge['same_direction_count'] += comparison_pair['same_direction_count']
+            edge['opposite_direction_count'] += comparison_pair['opposite_direction_count']
             if comparison_pair['same_direction']:
-                edge['same_direction_count'] += 1
-                total_support_count += 1
+                edge['same_direction_comparison_count'] += 1
+                comparison_support_count += 1
             if comparison_pair['opposite_direction']:
-                edge['opposite_direction_count'] += 1
-                total_support_count += 1
+                edge['opposite_direction_comparison_count'] += 1
+                comparison_support_count += 1
             edge['study_ids'].add(comparison.study_id)
             edge['comparison_ids'].add(comparison.pk)
             if comparison.label:
@@ -321,15 +344,20 @@ def _build_directional_edge_map(findings, grouping_rank, *, include_support_deta
                         'disease_label': disease_label,
                         'same_direction': comparison_pair['same_direction'],
                         'opposite_direction': comparison_pair['opposite_direction'],
+                        'same_direction_count': comparison_pair['same_direction_count'],
+                        'opposite_direction_count': comparison_pair['opposite_direction_count'],
                         'pattern': support_pattern,
                         'support_count': support_count,
+                        'rolled_up_support_count': (
+                            int(comparison_pair['same_direction']) + int(comparison_pair['opposite_direction'])
+                        ),
                         'leaf_taxon_ids': set(comparison_pair['leaf_taxon_ids']),
                         'items': support_items,
                         'findings': support_findings,
                     }
                 )
 
-    return edge_map, skipped_rollup_count, total_support_count
+    return edge_map, skipped_rollup_count, comparison_support_count
 
 
 def build_directional_taxon_network(
@@ -339,16 +367,18 @@ def build_directional_taxon_network(
     minimum_support=1,
     pattern_filter='all',
     taxon_query='',
+    support_mode='leaf',
 ):
     grouping_rank = grouping_rank if grouping_rank in GRAPH_GROUPING_RANKS else 'leaf'
     pattern_filter = pattern_filter if pattern_filter in {'all', 'same_direction', 'opposite_direction', 'mixed'} else 'all'
+    support_mode = normalize_directional_support_mode(support_mode)
     try:
         minimum_support = max(int(minimum_support), 1)
     except (TypeError, ValueError):
         minimum_support = 1
 
     findings = list(findings)
-    edge_map, skipped_rollup_count, total_support_count = _build_directional_edge_map(findings, grouping_rank)
+    edge_map, skipped_rollup_count, comparison_support_count = _build_directional_edge_map(findings, grouping_rank)
     matched_taxon_ids = _resolve_taxon_query_match_ids(findings, edge_map, taxon_query)
     node_map = {}
 
@@ -357,7 +387,13 @@ def build_directional_taxon_network(
         if taxon_query and not _edge_matches_taxon_query(edge, matched_taxon_ids):
             continue
 
-        dominant_pattern, total_support = _directional_edge_pattern(edge)
+        same_direction_count, opposite_direction_count = _resolve_directional_support_counts(edge, support_mode)
+        dominant_pattern, total_support = _directional_edge_pattern(
+            {
+                'same_direction_count': same_direction_count,
+                'opposite_direction_count': opposite_direction_count,
+            }
+        )
         if total_support < minimum_support:
             continue
 
@@ -401,15 +437,24 @@ def build_directional_taxon_network(
                     'source_label': edge['source_taxon'].scientific_name,
                     'target_label': edge['target_taxon'].scientific_name,
                     'dominant_pattern': dominant_pattern,
-                    'same_direction_count': edge['same_direction_count'],
-                    'opposite_direction_count': edge['opposite_direction_count'],
+                    'same_direction_count': same_direction_count,
+                    'opposite_direction_count': opposite_direction_count,
+                    'leaf_same_direction_count': edge['same_direction_count'],
+                    'leaf_opposite_direction_count': edge['opposite_direction_count'],
+                    'same_direction_comparison_count': edge['same_direction_comparison_count'],
+                    'opposite_direction_comparison_count': edge['opposite_direction_comparison_count'],
                     'total_support': total_support,
+                    'leaf_total_support': edge['same_direction_count'] + edge['opposite_direction_count'],
+                    'rolled_up_total_support': (
+                        edge['same_direction_comparison_count'] + edge['opposite_direction_comparison_count']
+                    ),
                     'comparison_count': len(edge['comparison_ids']),
                     'study_count': len(edge['study_ids']),
                     'source_count': len(edge['source_labels']),
                     'comparison_labels': ', '.join(sorted(edge['comparison_labels'])),
                     'disease_labels': ', '.join(sorted(edge['disease_labels'])),
                     'leaf_taxon_count': len(edge['leaf_taxon_ids']),
+                    'support_mode': support_mode,
                 }
             }
         )
@@ -453,11 +498,12 @@ def build_directional_taxon_network(
             'skipped_rollup_count': skipped_rollup_count,
             'minimum_support': minimum_support,
             'pattern_filter': pattern_filter,
+            'support_mode': support_mode,
             'same_direction_edge_count': same_direction_edge_count,
             'opposite_direction_edge_count': opposite_direction_edge_count,
             'mixed_edge_count': mixed_edge_count,
             'total_support_count': sum(edge['data']['total_support'] for edge in filtered_edges),
-            'comparison_support_count': total_support_count,
+            'comparison_support_count': comparison_support_count,
         },
     }
 
@@ -471,9 +517,11 @@ def get_directional_edge_evidence(
     minimum_support=1,
     pattern_filter='all',
     taxon_query='',
+    support_mode='leaf',
 ):
     grouping_rank = grouping_rank if grouping_rank in GRAPH_GROUPING_RANKS else 'leaf'
     pattern_filter = pattern_filter if pattern_filter in {'all', 'same_direction', 'opposite_direction', 'mixed'} else 'all'
+    support_mode = normalize_directional_support_mode(support_mode)
     try:
         minimum_support = max(int(minimum_support), 1)
     except (TypeError, ValueError):
@@ -484,7 +532,7 @@ def get_directional_edge_evidence(
     except (TypeError, ValueError):
         return None
     findings = list(findings)
-    edge_map, skipped_rollup_count, _total_support_count = _build_directional_edge_map(
+    edge_map, skipped_rollup_count, _comparison_support_count = _build_directional_edge_map(
         findings,
         grouping_rank,
         include_support_details=True,
@@ -497,7 +545,13 @@ def get_directional_edge_evidence(
     if taxon_query and not _edge_matches_taxon_query(edge, matched_taxon_ids):
         return None
 
-    dominant_pattern, total_support = _directional_edge_pattern(edge)
+    same_direction_count, opposite_direction_count = _resolve_directional_support_counts(edge, support_mode)
+    dominant_pattern, total_support = _directional_edge_pattern(
+        {
+            'same_direction_count': same_direction_count,
+            'opposite_direction_count': opposite_direction_count,
+        }
+    )
     if total_support < minimum_support:
         return None
     if pattern_filter != 'all' and dominant_pattern != pattern_filter:
@@ -550,8 +604,16 @@ def get_directional_edge_evidence(
         'target_taxon': edge['target_taxon'],
         'dominant_pattern': dominant_pattern,
         'total_support': total_support,
-        'same_direction_count': edge['same_direction_count'],
-        'opposite_direction_count': edge['opposite_direction_count'],
+        'same_direction_count': same_direction_count,
+        'opposite_direction_count': opposite_direction_count,
+        'leaf_same_direction_count': edge['same_direction_count'],
+        'leaf_opposite_direction_count': edge['opposite_direction_count'],
+        'same_direction_comparison_count': edge['same_direction_comparison_count'],
+        'opposite_direction_comparison_count': edge['opposite_direction_comparison_count'],
+        'leaf_total_support': edge['same_direction_count'] + edge['opposite_direction_count'],
+        'rolled_up_total_support': (
+            edge['same_direction_comparison_count'] + edge['opposite_direction_comparison_count']
+        ),
         'comparison_count': len(edge['comparison_ids']),
         'study_count': len(edge['study_ids']),
         'source_count': len(edge['source_labels']),
@@ -561,6 +623,7 @@ def get_directional_edge_evidence(
         'grouping_rank': grouping_rank,
         'minimum_support': minimum_support,
         'pattern_filter': pattern_filter,
+        'support_mode': support_mode,
         'skipped_rollup_count': skipped_rollup_count,
         'comparisons': comparisons,
         'findings': findings_rows,

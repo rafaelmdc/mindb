@@ -29,8 +29,7 @@
           Mixed
         {% endif %}
       </strong>
-      because across the current filtered graph context, <strong>{{ edge_evidence.opposite_direction_count }}</strong> support event{{ edge_evidence.opposite_direction_count|pluralize }} showed the two grouped taxa moving in opposite directions, while <strong>{{ edge_evidence.same_direction_count }}</strong> support event{{ edge_evidence.same_direction_count|pluralize }} showed them moving in the same direction.
-      Each support event is counted once per comparison after rollup to the selected taxon level.
+      because across the current filtered graph context, <strong>{{ edge_evidence.opposite_direction_count }}</strong> {% if current_support_mode == 'leaf' %}leaf-level pair support{{ edge_evidence.opposite_direction_count|pluralize }}{% else %}rolled-up support event{{ edge_evidence.opposite_direction_count|pluralize }}{% endif %} showed the two grouped taxa moving in opposite directions, while <strong>{{ edge_evidence.same_direction_count }}</strong> {% if current_support_mode == 'leaf' %}leaf-level pair support{{ edge_evidence.same_direction_count|pluralize }}{% else %}rolled-up support event{{ edge_evidence.same_direction_count|pluralize }}{% endif %} showed them moving in the same direction; those supports span <strong>{{ edge_evidence.comparison_count }}</strong> comparison{{ edge_evidence.comparison_count|pluralize }} after rollup to the selected taxon level.
     </p>
     <div class="progress mb-3" role="progressbar" aria-label="Support breakdown" aria-valuemin="0" aria-valuemax="{{ edge_evidence.total_support }}" aria-valuenow="{{ edge_evidence.opposite_direction_count }}">
       <div
@@ -49,7 +48,7 @@
     <div class="d-flex flex-wrap justify-content-center gap-2">
       <span class="badge text-bg-danger">Opposite {{ edge_evidence.opposite_direction_count }}</span>
       <span class="badge text-bg-success">Same {{ edge_evidence.same_direction_count }}</span>
-      <span class="badge text-bg-secondary">Total {{ edge_evidence.total_support }}</span>
+      <span class="badge text-bg-secondary">{% if current_support_mode == 'leaf' %}Leaf total{% else %}Rolled-up total{% endif %} {{ edge_evidence.total_support }}</span>
     </div>
   </div>
 </div>
@@ -74,7 +73,7 @@
   <div class="col-md-3">
     <div class="card shadow-sm metric-card">
       <div class="card-body">
-        <p class="text-uppercase text-secondary small mb-2">Support events</p>
+        <p class="text-uppercase text-secondary small mb-2">{{ current_support_metric_label }}</p>
         <p class="display-6 mb-0">{{ edge_evidence.total_support }}</p>
       </div>
     </div>
@@ -131,6 +130,9 @@
         {% endif %}
       </div>
       <div class="col-md-4">
+        <strong>Support mode:</strong> {{ current_support_mode_label }}
+      </div>
+      <div class="col-md-4">
         <strong>Disease query:</strong> {{ current_disease|default:"None" }}
       </div>
       <div class="col-md-4">
@@ -158,7 +160,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div>
         <h2 class="h5 mb-1">Supporting comparisons</h2>
-        <p class="text-secondary mb-0">One row per comparison contributing support to this grouped taxon pair.</p>
+        <p class="text-secondary mb-0">One row per comparison contributing support to this grouped taxon pair, with the support split shown in the current {{ current_support_mode_label|lower }} mode.</p>
       </div>
       <span class="badge text-bg-secondary">{{ comparison_page_obj.paginator.count }} total</span>
     </div>
@@ -181,17 +183,26 @@
               <td><a href="{% url 'database:study-detail' comparison.study_id %}">{{ comparison.study_title }}</a></td>
               <td>{{ comparison.disease_label|default:"-" }}</td>
               <td>
-                {% if comparison.pattern == 'same_direction' %}
-                  Both taxa moved the same way
-                {% elif comparison.pattern == 'opposite_direction' %}
-                  One taxon moved up while the other moved down
+                {% if comparison.same_direction and comparison.opposite_direction %}
+                  Some underlying leaf pairs moved the same way and others moved in opposite directions
+                {% elif comparison.same_direction %}
+                  The underlying leaf pairs moved the same way
+                {% elif comparison.opposite_direction %}
+                  The underlying leaf pairs moved in opposite directions
                 {% else %}
-                  This comparison contributed both same and opposite support
+                  This comparison contributed mixed support
                 {% endif %}
               </td>
               <td>
-                <span class="badge text-bg-danger">{{ comparison.opposite_direction|yesno:"1,0" }} opposite</span>
-                <span class="badge text-bg-success">{{ comparison.same_direction|yesno:"1,0" }} same</span>
+                {% if current_support_mode == 'leaf' %}
+                  <span class="badge text-bg-danger">{{ comparison.opposite_direction_count }} opposite</span>
+                  <span class="badge text-bg-success">{{ comparison.same_direction_count }} same</span>
+                  <span class="badge text-bg-secondary">{{ comparison.support_count }} total</span>
+                {% else %}
+                  <span class="badge text-bg-danger">{{ comparison.opposite_direction|yesno:"1,0" }} opposite</span>
+                  <span class="badge text-bg-success">{{ comparison.same_direction|yesno:"1,0" }} same</span>
+                  <span class="badge text-bg-secondary">{{ comparison.rolled_up_support_count }} total</span>
+                {% endif %}
               </td>
               <td>{{ comparison.leaf_taxon_ids|length }}</td>
             </tr>

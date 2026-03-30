@@ -47,7 +47,8 @@ The current implementation derives edges at request time.
 6. Classify each local pair as:
    - `same_direction`
    - `opposite_direction`
-7. Aggregate those pair observations across comparisons and studies.
+7. Count leaf-level support for each grouped pair from the underlying leaf taxa that sit under each grouped taxon inside that comparison.
+8. Aggregate those leaf-level pair counts across comparisons and studies, while also retaining separate comparison breadth counts.
 
 The payload stores a stable `source` and `target` order for rendering and table output, but the graph meaning is a taxon-pair relationship, not a causal directional statement.
 
@@ -61,6 +62,7 @@ The page supports:
 - `branch`
 - `group_rank`
 - `pattern`
+- `support_mode`
 - `min_support`
 - `engine`
 
@@ -87,6 +89,13 @@ Supported renderers:
 - `echarts`
 
 As with the disease graph, the visible layout sliders are renderer-specific.
+
+Support modes:
+
+- `leaf`
+  Counts support from underlying leaf-level taxon pairs after rollup. This is the higher-resolution mode.
+- `rolled_up`
+  Counts support the old way, where each grouped pair can contribute at most one same-direction and one opposite-direction support event per comparison after rollup.
 
 Co-abundance taxon filtering is applied after pair generation, not when loading the raw findings queryset. This preserves the full within-comparison taxon context needed to build edges, then keeps only edges involving the queried taxon or its lineage descendants or ancestors that remain visible at the selected grouping rank.
 
@@ -115,6 +124,8 @@ Edge payload includes:
 - `same_direction_count`
 - `opposite_direction_count`
 - `total_support`
+- `same_direction_comparison_count`
+- `opposite_direction_comparison_count`
 - `comparison_count`
 - `study_count`
 - `source_count`
@@ -124,11 +135,11 @@ Edge payload includes:
 
 Dominant pattern rules:
 
-- `same_direction` when same-direction support is greater
-- `opposite_direction` when opposite-direction support is greater
-- `mixed` when both support types exist and are tied
+- `same_direction` when same-direction leaf support is greater
+- `opposite_direction` when opposite-direction leaf support is greater
+- `mixed` when both leaf-support types exist and are tied
 
-The `min_support` filter is applied to total support after aggregation.
+The `min_support` filter is applied to leaf-level total support after aggregation.
 
 ## Summary cards
 
@@ -136,7 +147,7 @@ The page reports:
 
 - taxon count
 - edge count
-- total support events
+- total leaf-level supports
 - study count
 - same-direction edge count
 - opposite-direction edge count
@@ -163,4 +174,4 @@ The interactive graph header also exposes `Download PNG` and `Download SVG` acti
 - This graph is derived from shared comparison context, not from abundance correlation matrices.
 - It is not causal, mechanistic, or temporal.
 - It is not currently built from `QuantitativeFinding`.
-- Edge classification is comparison-aware and aggregation-based, so the graph should be read as a repeated literature pattern view.
+- Edge classification is comparison-aware, but the main strength metric is leaf-level pair support after rollup rather than one boolean event per grouped pair per comparison.

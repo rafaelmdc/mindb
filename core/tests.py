@@ -441,6 +441,73 @@ class DirectionalTaxonNetworkTests(TestCase):
             'mixed',
         )
 
+    def test_directional_taxon_network_builder_counts_leaf_support_after_rollup(self):
+        extra_taxon = Taxon.objects.create(
+            ncbi_taxonomy_id=102,
+            scientific_name='Blautia obeum',
+            rank='species',
+            parent=self.taxon_a_genus,
+        )
+        self._attach_lineage(self.family, self.taxon_a_genus, extra_taxon)
+        QualitativeFinding.objects.create(
+            comparison=self.comparison_a,
+            taxon=extra_taxon,
+            direction=QualitativeFinding.Direction.ENRICHED,
+            source='Table 2',
+        )
+        QualitativeFinding.objects.create(
+            comparison=self.comparison_b,
+            taxon=extra_taxon,
+            direction=QualitativeFinding.Direction.ENRICHED,
+            source='Table 4',
+        )
+
+        graph_data = build_directional_taxon_network(
+            QualitativeFinding.objects.select_related(
+                'comparison',
+                'comparison__group_a',
+                'comparison__group_b',
+                'comparison__study',
+                'taxon',
+            ),
+            grouping_rank='genus',
+        )
+
+        edge_payloads = {
+            frozenset({edge['data']['source_label'], edge['data']['target_label']}): edge['data']
+            for edge in graph_data['edges']
+        }
+        blautia_bacteroides = edge_payloads[frozenset({'Blautia', 'Bacteroides'})]
+        self.assertEqual(blautia_bacteroides['dominant_pattern'], 'opposite_direction')
+        self.assertEqual(blautia_bacteroides['total_support'], 4)
+        self.assertEqual(blautia_bacteroides['same_direction_count'], 0)
+        self.assertEqual(blautia_bacteroides['opposite_direction_count'], 4)
+        self.assertEqual(blautia_bacteroides['comparison_count'], 2)
+        self.assertEqual(blautia_bacteroides['same_direction_comparison_count'], 0)
+        self.assertEqual(blautia_bacteroides['opposite_direction_comparison_count'], 2)
+
+        rolled_up_graph_data = build_directional_taxon_network(
+            QualitativeFinding.objects.select_related(
+                'comparison',
+                'comparison__group_a',
+                'comparison__group_b',
+                'comparison__study',
+                'taxon',
+            ),
+            grouping_rank='genus',
+            support_mode='rolled_up',
+        )
+        rolled_up_edge_payloads = {
+            frozenset({edge['data']['source_label'], edge['data']['target_label']}): edge['data']
+            for edge in rolled_up_graph_data['edges']
+        }
+        rolled_up_blautia_bacteroides = rolled_up_edge_payloads[frozenset({'Blautia', 'Bacteroides'})]
+        self.assertEqual(rolled_up_blautia_bacteroides['dominant_pattern'], 'opposite_direction')
+        self.assertEqual(rolled_up_blautia_bacteroides['total_support'], 2)
+        self.assertEqual(rolled_up_blautia_bacteroides['same_direction_count'], 0)
+        self.assertEqual(rolled_up_blautia_bacteroides['opposite_direction_count'], 2)
+        self.assertEqual(rolled_up_blautia_bacteroides['support_mode'], 'rolled_up')
+
     def test_directional_taxon_network_page_filters_by_pattern(self):
         response = self.client.get(
             reverse('core:co-abundance-network'),
@@ -556,13 +623,20 @@ class DirectionalTaxonNetworkTests(TestCase):
         self.assertContains(response, 'value="0.04"')
 
     def test_directional_taxon_network_page_includes_edge_detail_urls(self):
-        response = self.client.get(reverse('core:co-abundance-network'), {'group_rank': 'leaf'})
+        response = self.client.get(
+            reverse('core:co-abundance-network'),
+            {
+                'group_rank': 'leaf',
+                'support_mode': 'rolled_up',
+            },
+        )
 
         self.assertEqual(response.status_code, 200)
         edge_data = response.context['graph_data']['edges'][0]['data']
         self.assertIn('source_taxon_pk', edge_data)
         self.assertIn('target_taxon_pk', edge_data)
         self.assertIn(reverse('core:co-abundance-edge-detail'), edge_data['edge_detail_url'])
+        self.assertIn('support_mode=rolled_up', edge_data['edge_detail_url'])
 
     def test_directional_taxon_network_page_uses_compact_supporting_evidence_preview(self):
         response = self.client.get(reverse('core:co-abundance-network'), {'group_rank': 'leaf'})
@@ -571,6 +645,8 @@ class DirectionalTaxonNetworkTests(TestCase):
         self.assertContains(response, 'Supporting Evidence')
         self.assertNotContains(response, 'Current graph payload')
         self.assertContains(response, 'Open evidence')
+        self.assertContains(response, 'Leaf supports')
+        self.assertContains(response, 'name="support_mode"')
         self.assertContains(response, 'Download PNG')
         self.assertContains(response, 'Download SVG')
         self.assertContains(response, '@tone-row/cytoscape-svg@1.0.2/cytoscape-svg.js')
@@ -645,6 +721,7 @@ class DirectionalTaxonNetworkTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Co-abundance Edge Evidence')
+        self.assertContains(response, 'Leaf supports')
         self.assertEqual(response.context['edge_evidence']['dominant_pattern'], 'opposite_direction')
         self.assertEqual(response.context['edge_evidence']['comparison_count'], 2)
         self.assertEqual(response.context['edge_evidence']['total_support'], 2)

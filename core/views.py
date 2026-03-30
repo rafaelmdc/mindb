@@ -12,10 +12,12 @@ from django.views.generic import TemplateView
 from database.models import Comparison, Group, QualitativeFinding, QuantitativeFinding, Study, Taxon
 
 from .graph_payloads import (
+    DIRECTIONAL_SUPPORT_MODE_CHOICES,
     GRAPH_GROUPING_CHOICES,
     build_disease_graph,
     build_directional_taxon_network,
     get_directional_edge_evidence,
+    normalize_directional_support_mode,
 )
 from .graph_renderers import (
     DISEASE_LAYOUT_CONTROL_SPECS,
@@ -244,6 +246,10 @@ class DirectionalTaxonGraphMixin:
         pattern_filter = self.request.GET.get('pattern', '').strip() or 'all'
         return pattern_filter if pattern_filter in {'all', 'same_direction', 'opposite_direction', 'mixed'} else 'all'
 
+    def get_support_mode(self):
+        support_mode = self.request.GET.get('support_mode', '').strip() or 'leaf'
+        return normalize_directional_support_mode(support_mode)
+
     def get_study_id(self):
         return self.request.GET.get('study', '').strip()
 
@@ -261,6 +267,7 @@ class DirectionalTaxonGraphMixin:
             'group_rank': self.get_grouping_rank(),
             'pattern': self.get_pattern_filter(),
             'min_support': self.get_minimum_support(),
+            'support_mode': self.get_support_mode(),
         }
         if self.get_study_id():
             params['study'] = self.get_study_id()
@@ -317,6 +324,7 @@ class DirectionalTaxonNetworkView(DirectionalTaxonGraphMixin, TemplateView):
         branch_id = self.get_branch_id()
         minimum_support = self.get_minimum_support()
         pattern_filter = self.get_pattern_filter()
+        support_mode = self.get_support_mode()
         current_engine = normalize_graph_engine(self.request.GET.get('engine', '').strip() or 'cytoscape')
         layout_settings = build_directional_layout_settings(self.request.GET)
         graph_data = build_directional_taxon_network(
@@ -325,6 +333,7 @@ class DirectionalTaxonNetworkView(DirectionalTaxonGraphMixin, TemplateView):
             minimum_support=minimum_support,
             pattern_filter=pattern_filter,
             taxon_query=self.get_taxon_query(),
+            support_mode=support_mode,
         )
         for edge in graph_data['edges']:
             edge['data']['edge_detail_url'] = self._build_edge_detail_url(edge['data'])
@@ -361,6 +370,7 @@ class DirectionalTaxonNetworkView(DirectionalTaxonGraphMixin, TemplateView):
             ('opposite_direction', 'Opposite direction'),
             ('mixed', 'Mixed'),
         )
+        context['support_mode_choices'] = DIRECTIONAL_SUPPORT_MODE_CHOICES
         context['current_engine'] = current_engine
         context['current_study'] = self.get_study_id()
         context['current_disease'] = self.get_disease_query()
@@ -369,6 +379,11 @@ class DirectionalTaxonNetworkView(DirectionalTaxonGraphMixin, TemplateView):
         context['current_group_rank'] = grouping_rank
         context['current_min_support'] = minimum_support
         context['current_pattern'] = pattern_filter
+        context['current_support_mode'] = support_mode
+        context['current_support_mode_label'] = dict(DIRECTIONAL_SUPPORT_MODE_CHOICES)[support_mode]
+        context['current_support_metric_label'] = (
+            'Leaf supports' if support_mode == 'leaf' else 'Rolled-up supports'
+        )
         context['current_branch_taxon'] = Taxon.objects.filter(pk=branch_id).first() if branch_id else None
         return context
 
@@ -395,6 +410,7 @@ class DirectionalTaxonEdgeDetailView(DirectionalTaxonGraphMixin, TemplateView):
         grouping_rank = self.get_grouping_rank()
         minimum_support = self.get_minimum_support()
         pattern_filter = self.get_pattern_filter()
+        support_mode = self.get_support_mode()
         edge_evidence = get_directional_edge_evidence(
             self.get_queryset(),
             source_taxon_id=source_taxon_id,
@@ -403,6 +419,7 @@ class DirectionalTaxonEdgeDetailView(DirectionalTaxonGraphMixin, TemplateView):
             minimum_support=minimum_support,
             pattern_filter=pattern_filter,
             taxon_query=self.get_taxon_query(),
+            support_mode=support_mode,
         )
         if edge_evidence is None:
             raise Http404('No co-abundance edge matched the current filters.')
@@ -426,6 +443,11 @@ class DirectionalTaxonEdgeDetailView(DirectionalTaxonGraphMixin, TemplateView):
         context['current_group_rank'] = grouping_rank
         context['current_min_support'] = minimum_support
         context['current_pattern'] = pattern_filter
+        context['current_support_mode'] = support_mode
+        context['current_support_mode_label'] = dict(DIRECTIONAL_SUPPORT_MODE_CHOICES)[support_mode]
+        context['current_support_metric_label'] = (
+            'Leaf supports' if support_mode == 'leaf' else 'Rolled-up supports'
+        )
         context['current_study_obj'] = Study.objects.filter(pk=context['current_study']).first() if context['current_study'] else None
         context['current_branch_taxon'] = Taxon.objects.filter(pk=branch_id).first() if branch_id else None
         context['graph_url'] = self._build_graph_url()
