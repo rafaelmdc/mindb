@@ -444,6 +444,49 @@ class DirectionalTaxonNetworkTests(TestCase):
         self.assertContains(response, 'value="300.0"')
         self.assertContains(response, 'value="0.04"')
 
+    def test_directional_taxon_network_page_includes_edge_detail_urls(self):
+        response = self.client.get(reverse('core:co-abundance-network'), {'group_rank': 'leaf'})
+
+        self.assertEqual(response.status_code, 200)
+        edge_data = response.context['graph_data']['edges'][0]['data']
+        self.assertIn('source_taxon_pk', edge_data)
+        self.assertIn('target_taxon_pk', edge_data)
+        self.assertIn(reverse('core:co-abundance-edge-detail'), edge_data['edge_detail_url'])
+
+    def test_co_abundance_edge_detail_page_renders_supporting_evidence(self):
+        response = self.client.get(
+            reverse('core:co-abundance-edge-detail'),
+            {
+                'group_rank': 'leaf',
+                'pattern': 'all',
+                'min_support': '1',
+                'source_taxon': self.taxon_a.pk,
+                'target_taxon': self.taxon_c.pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Co-abundance Edge Evidence')
+        self.assertEqual(response.context['edge_evidence']['dominant_pattern'], 'opposite_direction')
+        self.assertEqual(response.context['edge_evidence']['comparison_count'], 2)
+        self.assertEqual(response.context['edge_evidence']['total_support'], 2)
+        self.assertEqual(response.context['comparison_page_obj'].paginator.count, 2)
+        self.assertEqual(response.context['finding_page_obj'].paginator.count, 4)
+
+    def test_co_abundance_edge_detail_page_404s_when_edge_is_filtered_out(self):
+        response = self.client.get(
+            reverse('core:co-abundance-edge-detail'),
+            {
+                'group_rank': 'leaf',
+                'pattern': 'same_direction',
+                'min_support': '1',
+                'source_taxon': self.taxon_a.pk,
+                'target_taxon': self.taxon_c.pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
 
 class StaffHomeViewTests(TestCase):
     def setUp(self):

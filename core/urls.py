@@ -1,7 +1,15 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from .views import DirectionalTaxonNetworkView, GraphView, HomeView, ModelDiagramDownloadView, ModelDiagramView, StaffHomeView
+from .views import (
+    DirectionalTaxonEdgeDetailView,
+    DirectionalTaxonNetworkView,
+    GraphView,
+    HomeView,
+    ModelDiagramDownloadView,
+    ModelDiagramView,
+    StaffHomeView,
+)
 
 app_name = 'core'
 
@@ -11,6 +19,7 @@ urlpatterns = [
     path('graph/disease/', GraphView.as_view(), name='disease-network'),
     path('graph/directional-taxa/', RedirectView.as_view(pattern_name='core:co-abundance-network', permanent=False)),
     path('graph/co-abundance/', DirectionalTaxonNetworkView.as_view(), name='co-abundance-network'),
+    path('graph/co-abundance/edge-detail/', DirectionalTaxonEdgeDetailView.as_view(), name='co-abundance-edge-detail'),
     path('staff/', StaffHomeView.as_view(), name='staff-home'),
     path('staff/models/', ModelDiagramView.as_view(), name='model-diagram'),
     path('staff/models/download/<str:output_format>/', ModelDiagramDownloadView.as_view(), name='model-diagram-download'),

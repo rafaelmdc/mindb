@@ -20,14 +20,14 @@ Already implemented:
 - graph filtering by study, disease query, taxon query, branch, and grouping rank
 - co-abundance filters for pattern and minimum support
 - browser deep links from the disease graph into supporting comparison and finding views
+- multi-select focus behavior with consistent neighborhood fading in Cytoscape and ECharts
+- co-abundance edge right-click actions with a dedicated evidence page at `/graph/co-abundance/edge-detail/`
 
 Main planned changes from `docs/roadmap.md`:
 
-1. better right-click detail for co-abundance edges
-2. print the current graph selection
-3. open graph-highlighted taxa in the browser via filters
-4. replace large graph payload tables with paged supporting-result views
-5. improve ECharts organism highlighting so it behaves more like Cytoscape
+1. print the current graph selection
+2. open graph-highlighted taxa in the browser via filters
+3. replace large graph payload tables with paged supporting-result views
 
 ## Guiding principles
 
@@ -40,6 +40,10 @@ Main planned changes from `docs/roadmap.md`:
 ## Recommended implementation order
 
 ### Phase 1: ECharts focus parity
+
+Status:
+
+- implemented, with cumulative multi-select behavior retained across both graph pages
 
 Goal:
 
@@ -78,6 +82,10 @@ Validation:
 - confirm context menus still work after focus changes
 
 ### Phase 2: Co-abundance edge detail on right click
+
+Status:
+
+- implemented with a dedicated evidence route and paginated supporting comparison and finding sections
 
 Goal:
 

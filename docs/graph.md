@@ -40,6 +40,19 @@ Both graph pages support:
 
 Both pages also expose per-engine layout controls. Cytoscape and ECharts use different parameter sets and defaults, so the visible sliders change when the engine changes.
 
+## Shared interactions
+
+Both graph pages now support the same core interaction model in Cytoscape and ECharts:
+
+- click one or more nodes to build a cumulative selection
+- selected nodes stay highlighted until clicked again or cleared
+- immediate neighbors are shown as context
+- non-neighbor nodes and edges fade
+- `Clear focus` resets the full current selection
+- right click opens a small action menu for the selected graph element where actions are available
+
+The current implementation keeps this state entirely client-side. No graph selection is stored in the database or session.
+
 ## Disease graph
 
 The disease graph is a comparison-centered qualitative network.
@@ -61,6 +74,22 @@ The co-abundance graph is a derived taxon-pair pattern view.
 - qualitative directions are normalized into positive vs negative buckets
 - pair support is tracked as `same_direction`, `opposite_direction`, or `mixed`
 - edges are aggregated across comparisons and optionally filtered by minimum support
+
+### Co-abundance edge evidence
+
+Co-abundance edges now expose a dedicated evidence page at `/graph/co-abundance/edge-detail/`.
+
+The edge-detail route:
+
+- receives the current graph filters through GET params
+- receives the selected grouped taxon pair through `source_taxon` and `target_taxon`
+- rebuilds the filtered co-abundance context at request time
+- isolates the selected grouped-taxon edge
+- shows aggregate same-vs-opposite support counts
+- paginates supporting comparisons
+- paginates the exact `QualitativeFinding` rows that rolled up into the selected edge
+
+This keeps the graph page lightweight while still giving users a traceable path back to row-level evidence.
 
 Canonical documentation:
 

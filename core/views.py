@@ -1,13 +1,22 @@
+from urllib.parse import urlencode
+
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import Http404, HttpResponse
+from django.urls import reverse
 from django.utils.safestring import mark_safe
 from django.views import View
 from django.views.generic import TemplateView
 
 from database.models import Comparison, Group, QualitativeFinding, QuantitativeFinding, Study, Taxon
 
-from .graph_payloads import GRAPH_GROUPING_CHOICES, build_disease_graph, build_directional_taxon_network
+from .graph_payloads import (
+    GRAPH_GROUPING_CHOICES,
+    build_disease_graph,
+    build_directional_taxon_network,
+    get_directional_edge_evidence,
+)
 from .graph_renderers import (
     DISEASE_LAYOUT_CONTROL_SPECS,
     DIRECTIONAL_LAYOUT_CONTROL_SPECS,
@@ -186,9 +195,7 @@ class GraphView(TemplateView):
         return context
 
 
-class DirectionalTaxonNetworkView(TemplateView):
-    template_name = 'core/directional_taxon_network.html'
-
+class DirectionalTaxonGraphMixin:
     def get_grouping_rank(self):
         grouping_rank = self.request.GET.get('group_rank', '').strip() or 'family'
         valid_ranks = {value for value, _label in GRAPH_GROUPING_CHOICES}
@@ -205,6 +212,34 @@ class DirectionalTaxonNetworkView(TemplateView):
         pattern_filter = self.request.GET.get('pattern', '').strip() or 'all'
         return pattern_filter if pattern_filter in {'all', 'same_direction', 'opposite_direction', 'mixed'} else 'all'
 
+    def get_study_id(self):
+        return self.request.GET.get('study', '').strip()
+
+    def get_disease_query(self):
+        return self.request.GET.get('disease', '').strip() or self.request.GET.get('comparison', '').strip()
+
+    def get_taxon_query(self):
+        return self.request.GET.get('taxon', '').strip()
+
+    def get_branch_id(self):
+        return self.request.GET.get('branch', '').strip()
+
+    def get_graph_filter_query_params(self):
+        params = {
+            'group_rank': self.get_grouping_rank(),
+            'pattern': self.get_pattern_filter(),
+            'min_support': self.get_minimum_support(),
+        }
+        if self.get_study_id():
+            params['study'] = self.get_study_id()
+        if self.get_disease_query():
+            params['disease'] = self.get_disease_query()
+        if self.get_taxon_query():
+            params['taxon'] = self.get_taxon_query()
+        if self.get_branch_id():
+            params['branch'] = self.get_branch_id()
+        return params
+
     def get_queryset(self):
         queryset = QualitativeFinding.objects.select_related(
             'comparison',
@@ -214,10 +249,10 @@ class DirectionalTaxonNetworkView(TemplateView):
             'taxon',
         )
 
-        study_id = self.request.GET.get('study', '').strip()
-        disease_query = self.request.GET.get('disease', '').strip() or self.request.GET.get('comparison', '').strip()
-        taxon_query = self.request.GET.get('taxon', '').strip()
-        branch_id = self.request.GET.get('branch', '').strip()
+        study_id = self.get_study_id()
+        disease_query = self.get_disease_query()
+        taxon_query = self.get_taxon_query()
+        branch_id = self.get_branch_id()
 
         if study_id:
             queryset = queryset.filter(comparison__study_id=study_id)
@@ -237,10 +272,22 @@ class DirectionalTaxonNetworkView(TemplateView):
 
         return queryset.order_by('comparison__label', 'taxon__scientific_name')
 
+
+class DirectionalTaxonNetworkView(DirectionalTaxonGraphMixin, TemplateView):
+    template_name = 'core/directional_taxon_network.html'
+
+    def _build_edge_detail_url(self, edge_data):
+        query = {
+            **self.get_graph_filter_query_params(),
+            'source_taxon': edge_data['source_taxon_pk'],
+            'target_taxon': edge_data['target_taxon_pk'],
+        }
+        return f"{reverse('core:co-abundance-edge-detail')}?{urlencode(query)}"
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         grouping_rank = self.get_grouping_rank()
-        branch_id = self.request.GET.get('branch', '').strip()
+        branch_id = self.get_branch_id()
         minimum_support = self.get_minimum_support()
         pattern_filter = self.get_pattern_filter()
         current_engine = normalize_graph_engine(self.request.GET.get('engine', '').strip() or 'cytoscape')
@@ -251,6 +298,8 @@ class DirectionalTaxonNetworkView(TemplateView):
             minimum_support=minimum_support,
             pattern_filter=pattern_filter,
         )
+        for edge in graph_data['edges']:
+            edge['data']['edge_detail_url'] = self._build_edge_detail_url(edge['data'])
         context['graph_data'] = graph_data
         context['studies'] = Study.objects.order_by('title')
         context['grouping_rank_choices'] = GRAPH_GROUPING_CHOICES
@@ -271,12 +320,70 @@ class DirectionalTaxonNetworkView(TemplateView):
             ('mixed', 'Mixed'),
         )
         context['current_engine'] = current_engine
-        context['current_study'] = self.request.GET.get('study', '').strip()
-        context['current_disease'] = self.request.GET.get('disease', '').strip() or self.request.GET.get('comparison', '').strip()
-        context['current_taxon'] = self.request.GET.get('taxon', '').strip()
+        context['current_study'] = self.get_study_id()
+        context['current_disease'] = self.get_disease_query()
+        context['current_taxon'] = self.get_taxon_query()
         context['current_branch'] = branch_id
         context['current_group_rank'] = grouping_rank
         context['current_min_support'] = minimum_support
         context['current_pattern'] = pattern_filter
         context['current_branch_taxon'] = Taxon.objects.filter(pk=branch_id).first() if branch_id else None
+        return context
+
+
+class DirectionalTaxonEdgeDetailView(DirectionalTaxonGraphMixin, TemplateView):
+    template_name = 'core/co_abundance_edge_detail.html'
+    comparison_paginate_by = 20
+    finding_paginate_by = 30
+
+    def _paginate(self, items, *, page_param, per_page):
+        paginator = Paginator(items, per_page)
+        return paginator.get_page(self.request.GET.get(page_param, '1'))
+
+    def _build_graph_url(self):
+        return f"{reverse('core:co-abundance-network')}?{urlencode(self.get_graph_filter_query_params())}"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        source_taxon_id = self.request.GET.get('source_taxon', '').strip()
+        target_taxon_id = self.request.GET.get('target_taxon', '').strip()
+        if not source_taxon_id or not target_taxon_id:
+            raise Http404('Both source_taxon and target_taxon are required.')
+
+        grouping_rank = self.get_grouping_rank()
+        minimum_support = self.get_minimum_support()
+        pattern_filter = self.get_pattern_filter()
+        edge_evidence = get_directional_edge_evidence(
+            self.get_queryset(),
+            source_taxon_id=source_taxon_id,
+            target_taxon_id=target_taxon_id,
+            grouping_rank=grouping_rank,
+            minimum_support=minimum_support,
+            pattern_filter=pattern_filter,
+        )
+        if edge_evidence is None:
+            raise Http404('No co-abundance edge matched the current filters.')
+
+        branch_id = self.get_branch_id()
+        context['edge_evidence'] = edge_evidence
+        context['comparison_page_obj'] = self._paginate(
+            edge_evidence['comparisons'],
+            page_param='comparison_page',
+            per_page=self.comparison_paginate_by,
+        )
+        context['finding_page_obj'] = self._paginate(
+            edge_evidence['findings'],
+            page_param='finding_page',
+            per_page=self.finding_paginate_by,
+        )
+        context['current_study'] = self.get_study_id()
+        context['current_disease'] = self.get_disease_query()
+        context['current_taxon'] = self.get_taxon_query()
+        context['current_branch'] = branch_id
+        context['current_group_rank'] = grouping_rank
+        context['current_min_support'] = minimum_support
+        context['current_pattern'] = pattern_filter
+        context['current_study_obj'] = Study.objects.filter(pk=context['current_study']).first() if context['current_study'] else None
+        context['current_branch_taxon'] = Taxon.objects.filter(pk=branch_id).first() if branch_id else None
+        context['graph_url'] = self._build_graph_url()
         return context

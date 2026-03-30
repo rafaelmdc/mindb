@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% load browser_tags %}
+
+{% block title %}Co-abundance Edge Evidence{% endblock %}
+{% block body_class %}graph-page{% endblock %}
+
+{% block content %}
+<div class="page-intro d-flex justify-content-between align-items-end mb-4">
+  <div>
+    <h1 class="mb-1">Co-abundance Edge Evidence</h1>
+    <p class="text-secondary mb-0">
+      Evidence for <strong>{{ edge_evidence.source_taxon.scientific_name }}</strong> and <strong>{{ edge_evidence.target_taxon.scientific_name }}</strong> under the current graph filters.
+    </p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ graph_url }}">Back to graph</a>
+</div>
+
+<div class="card shadow-sm data-shell mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-2">How this edge was classified</h2>
+    <p class="mb-3">
+      This edge is labeled
+      <strong>
+        {% if edge_evidence.dominant_pattern == 'same_direction' %}
+          Same
+        {% elif edge_evidence.dominant_pattern == 'opposite_direction' %}
+          Opposite
+        {% else %}
+          Mixed
+        {% endif %}
+      </strong>
+      because across the current filtered graph context, <strong>{{ edge_evidence.opposite_direction_count }}</strong> support event{{ edge_evidence.opposite_direction_count|pluralize }} showed the two grouped taxa moving in opposite directions, while <strong>{{ edge_evidence.same_direction_count }}</strong> support event{{ edge_evidence.same_direction_count|pluralize }} showed them moving in the same direction.
+      Each support event is counted once per comparison after rollup to the selected taxon level.
+    </p>
+    <div class="progress mb-3" role="progressbar" aria-label="Support breakdown" aria-valuemin="0" aria-valuemax="{{ edge_evidence.total_support }}" aria-valuenow="{{ edge_evidence.opposite_direction_count }}">
+      <div
+        class="progress-bar bg-danger"
+        style="width: {% widthratio edge_evidence.opposite_direction_count edge_evidence.total_support 100 %}%"
+      >
+        Opposite {{ edge_evidence.opposite_direction_count }}
+      </div>
+      <div
+        class="progress-bar"
+        style="width: {% widthratio edge_evidence.same_direction_count edge_evidence.total_support 100 %}%"
+      >
+        Same {{ edge_evidence.same_direction_count }}
+      </div>
+    </div>
+    <div class="d-flex flex-wrap justify-content-center gap-2">
+      <span class="badge text-bg-danger">Opposite {{ edge_evidence.opposite_direction_count }}</span>
+      <span class="badge text-bg-primary">Same {{ edge_evidence.same_direction_count }}</span>
+      <span class="badge text-bg-secondary">Total {{ edge_evidence.total_support }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-md-3">
+    <div class="card shadow-sm metric-card">
+      <div class="card-body">
+        <p class="text-uppercase text-secondary small mb-2">Dominant pattern</p>
+        <p class="display-6 mb-0">
+          {% if edge_evidence.dominant_pattern == 'same_direction' %}
+            Same
+          {% elif edge_evidence.dominant_pattern == 'opposite_direction' %}
+            Opposite
+          {% else %}
+            Mixed
+          {% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm metric-card">
+      <div class="card-body">
+        <p class="text-uppercase text-secondary small mb-2">Support events</p>
+        <p class="display-6 mb-0">{{ edge_evidence.total_support }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm metric-card">
+      <div class="card-body">
+        <p class="text-uppercase text-secondary small mb-2">Comparisons</p>
+        <p class="display-6 mb-0">{{ edge_evidence.comparison_count }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm metric-card">
+      <div class="card-body">
+        <p class="text-uppercase text-secondary small mb-2">Studies</p>
+        <p class="display-6 mb-0">{{ edge_evidence.study_count }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm data-shell mb-4">
+  <div class="card-body">
+    <h2 class="h5">Current graph context</h2>
+    <div class="row g-3">
+      <div class="col-md-3">
+        <strong>Taxon level:</strong> {{ current_group_rank|title }}
+      </div>
+      <div class="col-md-3">
+        <strong>Pattern filter:</strong>
+        {% if current_pattern == 'same_direction' %}
+          Same
+        {% elif current_pattern == 'opposite_direction' %}
+          Opposite
+        {% elif current_pattern == 'mixed' %}
+          Mixed
+        {% else %}
+          All
+        {% endif %}
+      </div>
+      <div class="col-md-3">
+        <strong>Minimum support:</strong> {{ current_min_support }}
+      </div>
+      <div class="col-md-3">
+        <strong>Leaf taxa involved:</strong> {{ edge_evidence.leaf_taxon_count }}
+      </div>
+      <div class="col-md-4">
+        <strong>Study filter:</strong>
+        {% if current_study_obj %}
+          {{ current_study_obj.title }}
+        {% else %}
+          All studies
+        {% endif %}
+      </div>
+      <div class="col-md-4">
+        <strong>Disease query:</strong> {{ current_disease|default:"None" }}
+      </div>
+      <div class="col-md-4">
+        <strong>Taxon query:</strong> {{ current_taxon|default:"None" }}
+      </div>
+      <div class="col-12">
+        <strong>Branch:</strong>
+        {% if current_branch_taxon %}
+          {{ current_branch_taxon.scientific_name }}
+        {% else %}
+          All branches
+        {% endif %}
+      </div>
+    </div>
+    {% if edge_evidence.disease_labels %}
+      <p class="text-secondary mb-0 mt-3">
+        Diseases in this edge context: {{ edge_evidence.disease_labels|join:", " }}.
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card shadow-sm data-shell mb-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h2 class="h5 mb-1">Supporting comparisons</h2>
+        <p class="text-secondary mb-0">One row per comparison contributing support to this grouped taxon pair.</p>
+      </div>
+      <span class="badge text-bg-secondary">{{ comparison_page_obj.paginator.count }} total</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Comparison</th>
+            <th>Study</th>
+            <th>Disease</th>
+            <th>What happened</th>
+            <th>Support split</th>
+            <th>Leaf taxa</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for comparison in comparison_page_obj %}
+            <tr>
+              <td><a href="{% url 'database:comparison-detail' comparison.comparison_id %}">{{ comparison.comparison_label }}</a></td>
+              <td><a href="{% url 'database:study-detail' comparison.study_id %}">{{ comparison.study_title }}</a></td>
+              <td>{{ comparison.disease_label|default:"-" }}</td>
+              <td>
+                {% if comparison.pattern == 'same_direction' %}
+                  Both taxa moved the same way
+                {% elif comparison.pattern == 'opposite_direction' %}
+                  One taxon moved up while the other moved down
+                {% else %}
+                  This comparison contributed both same and opposite support
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge text-bg-danger">{{ comparison.opposite_direction|yesno:"1,0" }} opposite</span>
+                <span class="badge text-bg-primary">{{ comparison.same_direction|yesno:"1,0" }} same</span>
+              </td>
+              <td>{{ comparison.leaf_taxon_ids|length }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="text-center text-secondary py-4">No supporting comparisons matched these filters.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if comparison_page_obj.has_other_pages %}
+      <nav aria-label="Comparison pagination" class="mt-4">
+        <ul class="pagination pagination-shell mb-0">
+          <li class="page-item {% if not comparison_page_obj.has_previous %}disabled{% endif %}">
+            {% if comparison_page_obj.has_previous %}
+              <a class="page-link" href="{% querystring comparison_page=comparison_page_obj.previous_page_number %}">Previous</a>
+            {% else %}
+              <span class="page-link">Previous</span>
+            {% endif %}
+          </li>
+          {% for page_number in comparison_page_obj.paginator.page_range %}
+            <li class="page-item {% if page_number == comparison_page_obj.number %}active{% endif %}">
+              <a class="page-link" href="{% querystring comparison_page=page_number %}">{{ page_number }}</a>
+            </li>
+          {% endfor %}
+          <li class="page-item {% if not comparison_page_obj.has_next %}disabled{% endif %}">
+            {% if comparison_page_obj.has_next %}
+              <a class="page-link" href="{% querystring comparison_page=comparison_page_obj.next_page_number %}">Next</a>
+            {% else %}
+              <span class="page-link">Next</span>
+            {% endif %}
+          </li>
+        </ul>
+      </nav>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card shadow-sm data-shell">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h2 class="h5 mb-1">Supporting findings</h2>
+        <p class="text-secondary mb-0">Exact qualitative findings that rolled up into this co-abundance edge.</p>
+      </div>
+      <span class="badge text-bg-secondary">{{ finding_page_obj.paginator.count }} total</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Comparison</th>
+            <th>Study</th>
+            <th>Grouped taxon</th>
+            <th>Leaf taxon</th>
+            <th>Direction</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in finding_page_obj %}
+            <tr>
+              <td><a href="{% url 'database:qualitativefinding-detail' item.finding_id %}">{{ item.comparison_label }}</a></td>
+              <td><a href="{% url 'database:study-detail' item.study.pk %}">{{ item.study_title }}</a></td>
+              <td><a href="{% url 'database:taxon-detail' item.grouped_taxon.pk %}">{{ item.grouped_taxon_label }}</a></td>
+              <td><a href="{% url 'database:taxon-detail' item.leaf_taxon.pk %}">{{ item.leaf_taxon_label }}</a></td>
+              <td>{{ item.finding.get_direction_display }}</td>
+              <td>{{ item.source }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="text-center text-secondary py-4">No supporting findings matched these filters.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if finding_page_obj.has_other_pages %}
+      <nav aria-label="Finding pagination" class="mt-4">
+        <ul class="pagination pagination-shell mb-0">
+          <li class="page-item {% if not finding_page_obj.has_previous %}disabled{% endif %}">
+            {% if finding_page_obj.has_previous %}
+              <a class="page-link" href="{% querystring finding_page=finding_page_obj.previous_page_number %}">Previous</a>
+            {% else %}
+              <span class="page-link">Previous</span>
+            {% endif %}
+          </li>
+          {% for page_number in finding_page_obj.paginator.page_range %}
+            <li class="page-item {% if page_number == finding_page_obj.number %}active{% endif %}">
+              <a class="page-link" href="{% querystring finding_page=page_number %}">{{ page_number }}</a>
+            </li>
+          {% endfor %}
+          <li class="page-item {% if not finding_page_obj.has_next %}disabled{% endif %}">
+            {% if finding_page_obj.has_next %}
+              <a class="page-link" href="{% querystring finding_page=finding_page_obj.next_page_number %}">Next</a>
+            {% else %}
+              <span class="page-link">Next</span>
+            {% endif %}
+          </li>
+        </ul>
+      </nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

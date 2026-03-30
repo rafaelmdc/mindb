@@ -239,7 +239,7 @@
 </div>
 
 <div id="graph-context-menu" class="graph-context-menu" hidden>
-  <a id="graph-context-menu-open" class="graph-context-menu-link" href="#">Open taxon entry</a>
+  <div id="graph-context-menu-actions"></div>
 </div>
 
 {{ graph_data|json_script:"graph-data" }}
@@ -256,7 +256,7 @@
     const graphData = JSON.parse(document.getElementById('graph-data').textContent);
     const chart = echarts.init(graphElement);
     const contextMenu = document.getElementById('graph-context-menu');
-    const contextMenuOpenLink = document.getElementById('graph-context-menu-open');
+    const contextMenuActions = document.getElementById('graph-context-menu-actions');
     const taxonDetailUrlTemplate = "{% url 'database:taxon-detail' 0 %}";
     const echartsRepulsion = {{ layout_settings.echarts_repulsion }};
     const echartsEdgeLength = {{ layout_settings.echarts_edge_length }};
@@ -264,7 +264,7 @@
     const echartsLabelZoomThreshold = 0.76;
     let labelsVisible = true;
     const selectedNodeIds = new Set();
-    let hoveredTaxonPk = null;
+    let hoveredNodeData = null;
     const focusedNodeOpacity = 1;
     const contextNodeOpacity = 0.94;
     const fadedNodeOpacity = 0.16;
@@ -272,6 +272,28 @@
     const focusedEdgeOpacity = 0.94;
     const fadedEdgeOpacity = 0.08;
     const buildEdgeKey = (sourceId, targetId) => `${sourceId}::${targetId}`;
+    const buildContextMenuActions = (nodeData) => {
+      if (!nodeData) {
+        return [];
+      }
+      if (nodeData.edge_detail_url) {
+        return [
+          {
+            href: nodeData.edge_detail_url,
+            label: 'Open edge evidence',
+          },
+        ];
+      }
+      if (nodeData.taxon_pk) {
+        return [
+          {
+            href: taxonDetailUrlTemplate.replace('/0/', `/${nodeData.taxon_pk}/`),
+            label: 'Open taxon entry',
+          },
+        ];
+      }
+      return [];
+    };
     const buildFocusState = () => {
       if (selectedNodeIds.size === 0) {
         return {
@@ -366,6 +388,7 @@
       return {
       source: edge.data.source,
       target: edge.data.target,
+      edge_detail_url: edge.data.edge_detail_url,
       value: edge.data.total_support,
       lineStyle: {
         color:
@@ -399,12 +422,15 @@
       }
       contextMenu.hidden = true;
     };
-    const showContextMenu = (clientX, clientY, taxonPk) => {
-      if (!contextMenu || !contextMenuOpenLink || !taxonPk) {
+    const showContextMenu = (clientX, clientY, nodeData) => {
+      const actions = buildContextMenuActions(nodeData);
+      if (!contextMenu || !contextMenuActions || actions.length === 0) {
         hideContextMenu();
         return;
       }
-      contextMenuOpenLink.href = taxonDetailUrlTemplate.replace('/0/', `/${taxonPk}/`);
+      contextMenuActions.innerHTML = actions
+        .map((action) => `<a class="graph-context-menu-link" href="${action.href}">${action.label}</a>`)
+        .join('');
       contextMenu.hidden = false;
       contextMenu.style.left = `${clientX}px`;
       contextMenu.style.top = `${clientY}px`;
@@ -488,30 +514,30 @@
       applyChartState();
     });
     chart.on('mousemove', (params) => {
-      if (params.dataType === 'node' && params.data && params.data.taxon_pk) {
-        hoveredTaxonPk = params.data.taxon_pk;
+      if ((params.dataType === 'node' || params.dataType === 'edge') && params.data) {
+        hoveredNodeData = params.data;
       } else {
-        hoveredTaxonPk = null;
+        hoveredNodeData = null;
       }
     });
     chart.on('globalout', () => {
-      hoveredTaxonPk = null;
+      hoveredNodeData = null;
     });
     graphElement.addEventListener('mousedown', (event) => {
       if (event.button !== 2) {
         return;
       }
       event.preventDefault();
-      if (hoveredTaxonPk) {
-        showContextMenu(event.clientX, event.clientY, hoveredTaxonPk);
+      if (hoveredNodeData) {
+        showContextMenu(event.clientX, event.clientY, hoveredNodeData);
       } else {
         hideContextMenu();
       }
     });
     graphElement.addEventListener('contextmenu', (event) => {
       event.preventDefault();
-      if (hoveredTaxonPk) {
-        showContextMenu(event.clientX, event.clientY, hoveredTaxonPk);
+      if (hoveredNodeData) {
+        showContextMenu(event.clientX, event.clientY, hoveredNodeData);
       } else {
         hideContextMenu();
       }
@@ -541,7 +567,7 @@
   if (graphElement) {
     const graphData = JSON.parse(document.getElementById('graph-data').textContent);
     const contextMenu = document.getElementById('graph-context-menu');
-    const contextMenuOpenLink = document.getElementById('graph-context-menu-open');
+    const contextMenuActions = document.getElementById('graph-context-menu-actions');
     const taxonDetailUrlTemplate = "{% url 'database:taxon-detail' 0 %}";
     const elements = [...graphData.nodes, ...graphData.edges];
     const selectedNodeIds = new Set();
@@ -822,12 +848,37 @@
       }
       contextMenu.hidden = true;
     };
-    const showContextMenu = (clientX, clientY, taxonPk) => {
-      if (!contextMenu || !contextMenuOpenLink || !taxonPk) {
+    const buildContextMenuActions = (nodeData) => {
+      if (!nodeData) {
+        return [];
+      }
+      if (nodeData.edge_detail_url) {
+        return [
+          {
+            href: nodeData.edge_detail_url,
+            label: 'Open edge evidence',
+          },
+        ];
+      }
+      if (nodeData.taxon_pk) {
+        return [
+          {
+            href: taxonDetailUrlTemplate.replace('/0/', `/${nodeData.taxon_pk}/`),
+            label: 'Open taxon entry',
+          },
+        ];
+      }
+      return [];
+    };
+    const showContextMenu = (clientX, clientY, nodeData) => {
+      const actions = buildContextMenuActions(nodeData);
+      if (!contextMenu || !contextMenuActions || actions.length === 0) {
         hideContextMenu();
         return;
       }
-      contextMenuOpenLink.href = taxonDetailUrlTemplate.replace('/0/', `/${taxonPk}/`);
+      contextMenuActions.innerHTML = actions
+        .map((action) => `<a class="graph-context-menu-link" href="${action.href}">${action.label}</a>`)
+        .join('');
       contextMenu.hidden = false;
       contextMenu.style.left = `${clientX}px`;
       contextMenu.style.top = `${clientY}px`;
@@ -901,9 +952,9 @@
     });
 
     cy.on('cxttap', 'node', (event) => {
-      const taxonPk = event.target.data('taxon_pk');
+      const nodeData = event.target.data();
       const renderedPosition = event.renderedPosition || event.position;
-      if (!taxonPk || !renderedPosition) {
+      if (!renderedPosition) {
         hideContextMenu();
         return;
       }
@@ -911,7 +962,22 @@
       showContextMenu(
         canvasBounds.left + renderedPosition.x,
         canvasBounds.top + renderedPosition.y,
-        taxonPk,
+        nodeData,
+      );
+    });
+
+    cy.on('cxttap', 'edge', (event) => {
+      const edgeData = event.target.data();
+      const renderedPosition = event.renderedPosition || event.position;
+      if (!renderedPosition) {
+        hideContextMenu();
+        return;
+      }
+      const canvasBounds = graphElement.getBoundingClientRect();
+      showContextMenu(
+        canvasBounds.left + renderedPosition.x,
+        canvasBounds.top + renderedPosition.y,
+        edgeData,
       );
     });
 
