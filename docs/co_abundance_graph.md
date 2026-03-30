@@ -156,6 +156,8 @@ The main graph page now uses a paginated supporting-evidence table instead of a 
 
 When JavaScript is available, evidence-table pagination happens in place from the already-loaded graph JSON, so paging through edge rows does not rerender the graph canvas. The current table page is still reflected in the `edge_page` query param, and direct full-page loads still have a server-rendered fallback.
 
+The interactive graph header also exposes `Download PNG` and `Download SVG` actions. These exports are generated client-side from the current rendered graph state, so focused taxa and faded context are preserved in the downloaded network image.
+
 ## Caveats
 
 - This graph is derived from shared comparison context, not from abundance correlation matrices.

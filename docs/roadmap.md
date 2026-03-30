@@ -11,6 +11,7 @@ This roadmap reflects the current codebase state and the next practical steps fo
 - preview-first CSV and workbook import flow with `ImportBatch` provenance
 - disease graph with Cytoscape and ECharts renderers
 - co-abundance taxon network with pattern filtering and support thresholds
+- direct graph export to PNG and SVG from the interactive graph pages
 
 ## Current priorities
 
@@ -22,7 +23,6 @@ This roadmap reflects the current codebase state and the next practical steps fo
 ## Next implementation work
 
 - right click to see list of values / show calculations in a user friendly way in co-occurance edges
-- print current graph selection
 - open taxa (in browser) highlighted in graph, via filter would be the easiest route
 - have pages instead of listing all listings involved in graphs in a big table
 - change echarts rendering, so one can highlight a specific organism when clicking on it, mimicking cytoscape

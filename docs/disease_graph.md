@@ -126,6 +126,8 @@ The main graph page now keeps a paginated supporting-evidence table instead of a
 
 When JavaScript is available, evidence-table pagination happens in place from the already-loaded graph JSON, so browsing evidence pages does not rerender the graph canvas. The current table page is still reflected in the `edge_page` query param, and direct full-page loads still have a server-rendered fallback.
 
+The interactive graph header also exposes `Download PNG` and `Download SVG` actions. These exports are generated client-side from the current rendered graph state, so focused nodes and faded context are preserved in the downloaded network image.
+
 The taxon browser also includes an `Open in disease graph` action. That launch uses:
 
 - `branch=<taxon_id>`

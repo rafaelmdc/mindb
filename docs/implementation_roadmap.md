@@ -25,7 +25,7 @@ Already implemented:
 
 Main planned changes from `docs/roadmap.md`:
 
-1. print the current graph selection
+1. export the current graph selection
 2. open graph-highlighted taxa in the browser via filters
 3. replace large graph payload tables with paged supporting-result views
 
@@ -288,11 +288,17 @@ Validation:
 - confirm supporting browser links open paginated results
 - confirm no evidence path is lost when the large inline tables are reduced
 
-### Phase 5: Graph print support
+### Phase 5: Graph export support
+
+Status:
+
+- implemented on both graph pages with direct `Download PNG` and `Download SVG` actions
+- exports are generated client-side from the live renderer state
+- no separate print route or print-mode page was added
 
 Goal:
 
-- let users print or export the current graph selection in a usable form
+- let users export the current graph selection in a usable form
 
 Why fifth:
 
@@ -301,38 +307,33 @@ Why fifth:
 
 Recommended first implementation:
 
-- add a print-friendly route or print mode driven by query params
-- print:
-  - graph title
-  - current filters
-  - summary cards
-  - focused selection summary if a node is selected
-  - supporting evidence summary table limited to the focused context
+- add direct graph export buttons on the interactive page
+- support:
+  - `PNG`
+  - `SVG`
+- export the live graph state rather than a separate report page
 
 Recommended technical approach:
 
-- keep this server-rendered
-- use a print-specific CSS block or `?print=1`
-- avoid trying to print the interactive JS canvas faithfully in V1
-- instead print a compact textual selection summary plus the current filter state
+- keep this client-side
+- use the renderer's own export path where possible
+- avoid adding a separate server-side print route for V1
 
 Likely files:
 
-- `core/views.py`
 - `templates/core/graph.html`
 - `templates/core/directional_taxon_network.html`
-- `static/css/site.css`
 
 Implementation notes:
 
-- if browser-native `window.print()` is enough, wire a print button first
-- only add a dedicated print mode if the default page print is too noisy
+- use the current graph state so focused nodes and faded context carry into the export
+- keep export actions close to the graph canvas controls
 
 Validation:
 
-- print disease graph with no focus
-- print co-abundance graph with one focused node
-- confirm printed output includes filters and selection context
+- download disease graph as PNG and SVG
+- download co-abundance graph as PNG and SVG
+- confirm focused nodes and faded context are preserved in the export
 
 ## Cross-cutting backend refinements
 
@@ -349,8 +350,8 @@ Likely file:
 Useful additions:
 
 - arrays for comparison labels and disease labels
-- a compact calculation summary string for tooltips or print mode
-- selected-node adjacency summaries if print mode needs them
+- a compact calculation summary string for tooltips or export metadata if needed
+- selected-node adjacency summaries if a future export mode needs them
 
 ### Browser filter polish
 
@@ -382,7 +383,7 @@ Add tests for:
 - new graph query params if introduced
 - any payload additions needed by templates
 - browser highlight/filter query parsing
-- print mode context values
+- export control markup
 
 ### Manual UI checks
 
@@ -439,7 +440,7 @@ Milestone 4:
 
 Milestone 5:
 
-- print current graph selection
+- export current graph selection
 
 ## Definition of done
 
@@ -449,4 +450,4 @@ This roadmap is complete when:
 - graph selections can be sent into the browser cleanly
 - large evidence inspection happens in paginated views instead of oversized inline tables
 - co-abundance edge detail is understandable without reading raw payload fields
-- print output is useful for a filtered or focused graph state
+- graph export is useful for a filtered or focused graph state

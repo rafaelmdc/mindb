@@ -57,6 +57,8 @@ The current implementation keeps this state entirely client-side. No graph selec
 
 The supporting-evidence tables on both graph pages also paginate client-side from the already-loaded graph JSON. Normal page-number clicks update only the evidence table and the `edge_page` URL state instead of rebuilding the graph, while direct full-page loads still use the server-rendered first page as a fallback.
 
+Both graph pages also expose direct `Download PNG` and `Download SVG` actions on the interactive page. The export is generated client-side from the live renderer state, so the downloaded network reflects the current focused or faded graph view without a separate server-side print route.
+
 ## Disease graph
 
 The disease graph is a comparison-centered qualitative network.

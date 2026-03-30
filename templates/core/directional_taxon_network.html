@@ -109,9 +109,17 @@
             Grouped at the <strong>{{ current_group_rank }}</strong> level{% if current_branch_taxon %} within the <strong>{{ current_branch_taxon.scientific_name }}</strong> branch{% endif %}. Opposite-direction edges render in red, and the chosen engine is explicit so users can compare layouts directly.
           </p>
         </div>
-        <button class="btn btn-outline-secondary btn-sm align-self-start align-self-lg-auto" type="button" id="graph-reset-focus">
-          Clear focus
-        </button>
+        <div class="d-flex flex-wrap gap-2 align-self-start align-self-lg-auto">
+          <button class="btn btn-outline-secondary btn-sm" type="button" id="graph-download-png">
+            Download PNG
+          </button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" id="graph-download-svg">
+            Download SVG
+          </button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" id="graph-reset-focus">
+            Clear focus
+          </button>
+        </div>
       </div>
       <div class="graph-stage">
         <div id="graph-canvas" class="graph-canvas-frame"></div>
@@ -412,10 +420,50 @@
     renderTable(initialPage, true);
   })();
 </script>
+<script>
+  const triggerGraphDownloadFromUrl = (filename, downloadUrl) => {
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const triggerGraphDownloadFromText = (filename, content, mimeType) => {
+    const blob = new Blob([content], { type: mimeType });
+    const blobUrl = URL.createObjectURL(blob);
+    triggerGraphDownloadFromUrl(filename, blobUrl);
+    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
+  };
+
+  const convertSvgMarkupToPngDataUrl = (svgMarkup, width, height, scale = 2) => new Promise((resolve, reject) => {
+    const blob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(blobUrl);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(blobUrl);
+      reject(new Error('Unable to rasterize SVG export.'));
+    };
+    image.src = blobUrl;
+  });
+</script>
 {% if current_engine == 'echarts' %}
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 {% else %}
 <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tone-row/cytoscape-svg@1.0.2/cytoscape-svg.js"></script>
 {% endif %}
 {% block extra_js %}
 {% if current_engine == 'echarts' %}
@@ -423,9 +471,12 @@
   const graphElement = document.getElementById('graph-canvas');
   if (graphElement) {
     const graphData = JSON.parse(document.getElementById('graph-data').textContent);
-    const chart = echarts.init(graphElement);
+    const chart = echarts.init(graphElement, null, { renderer: 'svg' });
     const contextMenu = document.getElementById('graph-context-menu');
     const contextMenuActions = document.getElementById('graph-context-menu-actions');
+    const downloadPngButton = document.getElementById('graph-download-png');
+    const downloadSvgButton = document.getElementById('graph-download-svg');
+    const exportBaseFilename = 'co-abundance-network';
     const taxonDetailUrlTemplate = "{% url 'database:taxon-detail' 0 %}";
     const echartsRepulsion = {{ layout_settings.echarts_repulsion }};
     const echartsEdgeLength = {{ layout_settings.echarts_edge_length }};
@@ -462,6 +513,16 @@
         ];
       }
       return [];
+    };
+    const getGraphSvgMarkup = () => {
+      const svgElement = graphElement.querySelector('svg');
+      if (!svgElement) {
+        return '';
+      }
+      const serialized = new XMLSerializer().serializeToString(svgElement);
+      return serialized.startsWith('<?xml')
+        ? serialized
+        : `<?xml version="1.0" encoding="UTF-8"?>\n${serialized}`;
     };
     const buildFocusState = () => {
       if (selectedNodeIds.size === 0) {
@@ -591,6 +652,29 @@
       }
       contextMenu.hidden = true;
     };
+    const downloadCurrentGraphPng = async () => {
+      const svgMarkup = getGraphSvgMarkup();
+      if (!svgMarkup) {
+        return;
+      }
+      const pngDataUrl = await convertSvgMarkupToPngDataUrl(
+        svgMarkup,
+        graphElement.clientWidth || 1240,
+        graphElement.clientHeight || 760,
+      );
+      triggerGraphDownloadFromUrl(`${exportBaseFilename}.png`, pngDataUrl);
+    };
+    const downloadCurrentGraphSvg = () => {
+      const svgMarkup = getGraphSvgMarkup();
+      if (!svgMarkup) {
+        return;
+      }
+      triggerGraphDownloadFromText(
+        `${exportBaseFilename}.svg`,
+        svgMarkup,
+        'image/svg+xml;charset=utf-8',
+      );
+    };
     const showContextMenu = (clientX, clientY, nodeData) => {
       const actions = buildContextMenuActions(nodeData);
       if (!contextMenu || !contextMenuActions || actions.length === 0) {
@@ -652,6 +736,18 @@
       ]
     };
     chart.setOption(option);
+    if (downloadPngButton) {
+      downloadPngButton.addEventListener('click', async () => {
+        hideContextMenu();
+        await downloadCurrentGraphPng();
+      });
+    }
+    if (downloadSvgButton) {
+      downloadSvgButton.addEventListener('click', () => {
+        hideContextMenu();
+        downloadCurrentGraphSvg();
+      });
+    }
     const updateLabelVisibility = () => {
       const series = chart.getOption().series?.[0];
       const currentZoom = series && typeof series.zoom === 'number' ? series.zoom : 1;
@@ -737,6 +833,9 @@
     const graphData = JSON.parse(document.getElementById('graph-data').textContent);
     const contextMenu = document.getElementById('graph-context-menu');
     const contextMenuActions = document.getElementById('graph-context-menu-actions');
+    const downloadPngButton = document.getElementById('graph-download-png');
+    const downloadSvgButton = document.getElementById('graph-download-svg');
+    const exportBaseFilename = 'co-abundance-network';
     const taxonDetailUrlTemplate = "{% url 'database:taxon-detail' 0 %}";
     const elements = [...graphData.nodes, ...graphData.edges];
     const selectedNodeIds = new Set();
@@ -1017,6 +1116,29 @@
       }
       contextMenu.hidden = true;
     };
+    if (downloadPngButton) {
+      downloadPngButton.addEventListener('click', () => {
+        hideContextMenu();
+        triggerGraphDownloadFromUrl(
+          `${exportBaseFilename}.png`,
+          cy.png({ full: true, bg: '#ffffff', scale: 2 }),
+        );
+      });
+    }
+    if (downloadSvgButton) {
+      if (typeof cy.svg !== 'function') {
+        downloadSvgButton.disabled = true;
+      } else {
+        downloadSvgButton.addEventListener('click', () => {
+          hideContextMenu();
+          triggerGraphDownloadFromText(
+            `${exportBaseFilename}.svg`,
+            cy.svg({ full: true, bg: '#ffffff', scale: 1 }),
+            'image/svg+xml;charset=utf-8',
+          );
+        });
+      }
+    }
     const buildContextMenuActions = (nodeData) => {
       if (!nodeData) {
         return [];
