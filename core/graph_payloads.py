@@ -1,4 +1,6 @@
-from database.models import TaxonClosure
+from django.db.models import Q
+
+from database.models import Taxon, TaxonClosure
 
 
 GRAPH_GROUPING_CHOICES = (
@@ -114,6 +116,53 @@ def _directional_edge_pattern(edge):
     else:
         dominant_pattern = 'opposite_direction'
     return dominant_pattern, total_support
+
+
+def _resolve_taxon_query_match_ids(findings, edge_map, taxon_query):
+    taxon_query = (taxon_query or '').strip()
+    if not taxon_query:
+        return set()
+
+    matched_taxon_ids = set(
+        Taxon.objects.filter(
+            Q(scientific_name__icontains=taxon_query)
+            | Q(rank__icontains=taxon_query)
+        ).values_list('pk', flat=True)
+    )
+    if not matched_taxon_ids:
+        return set()
+
+    relevant_taxon_ids = {finding.taxon_id for finding in findings}
+    for edge in edge_map.values():
+        relevant_taxon_ids.add(edge['source_taxon'].pk)
+        relevant_taxon_ids.add(edge['target_taxon'].pk)
+        relevant_taxon_ids.update(edge['leaf_taxon_ids'])
+
+    if not relevant_taxon_ids:
+        return matched_taxon_ids
+
+    related_taxon_ids = set(matched_taxon_ids & relevant_taxon_ids)
+    related_taxon_ids.update(
+        TaxonClosure.objects.filter(
+            ancestor_id__in=matched_taxon_ids,
+            descendant_id__in=relevant_taxon_ids,
+        ).values_list('descendant_id', flat=True)
+    )
+    related_taxon_ids.update(
+        TaxonClosure.objects.filter(
+            descendant_id__in=matched_taxon_ids,
+            ancestor_id__in=relevant_taxon_ids,
+        ).values_list('ancestor_id', flat=True)
+    )
+    return related_taxon_ids
+
+
+def _edge_matches_taxon_query(edge, matched_taxon_ids):
+    return (
+        edge['source_taxon'].pk in matched_taxon_ids
+        or edge['target_taxon'].pk in matched_taxon_ids
+        or bool(edge['leaf_taxon_ids'] & matched_taxon_ids)
+    )
 
 
 def _build_directional_edge_map(findings, grouping_rank, *, include_support_details=False, target_edge_key=None):
@@ -283,7 +332,14 @@ def _build_directional_edge_map(findings, grouping_rank, *, include_support_deta
     return edge_map, skipped_rollup_count, total_support_count
 
 
-def build_directional_taxon_network(findings, *, grouping_rank='leaf', minimum_support=1, pattern_filter='all'):
+def build_directional_taxon_network(
+    findings,
+    *,
+    grouping_rank='leaf',
+    minimum_support=1,
+    pattern_filter='all',
+    taxon_query='',
+):
     grouping_rank = grouping_rank if grouping_rank in GRAPH_GROUPING_RANKS else 'leaf'
     pattern_filter = pattern_filter if pattern_filter in {'all', 'same_direction', 'opposite_direction', 'mixed'} else 'all'
     try:
@@ -291,11 +347,16 @@ def build_directional_taxon_network(findings, *, grouping_rank='leaf', minimum_s
     except (TypeError, ValueError):
         minimum_support = 1
 
+    findings = list(findings)
     edge_map, skipped_rollup_count, total_support_count = _build_directional_edge_map(findings, grouping_rank)
+    matched_taxon_ids = _resolve_taxon_query_match_ids(findings, edge_map, taxon_query)
     node_map = {}
 
     filtered_edges = []
     for edge in edge_map.values():
+        if taxon_query and not _edge_matches_taxon_query(edge, matched_taxon_ids):
+            continue
+
         dominant_pattern, total_support = _directional_edge_pattern(edge)
         if total_support < minimum_support:
             continue
@@ -409,6 +470,7 @@ def get_directional_edge_evidence(
     grouping_rank='leaf',
     minimum_support=1,
     pattern_filter='all',
+    taxon_query='',
 ):
     grouping_rank = grouping_rank if grouping_rank in GRAPH_GROUPING_RANKS else 'leaf'
     pattern_filter = pattern_filter if pattern_filter in {'all', 'same_direction', 'opposite_direction', 'mixed'} else 'all'
@@ -421,14 +483,18 @@ def get_directional_edge_evidence(
         edge_key = tuple(sorted((int(source_taxon_id), int(target_taxon_id))))
     except (TypeError, ValueError):
         return None
+    findings = list(findings)
     edge_map, skipped_rollup_count, _total_support_count = _build_directional_edge_map(
         findings,
         grouping_rank,
         include_support_details=True,
         target_edge_key=edge_key,
     )
+    matched_taxon_ids = _resolve_taxon_query_match_ids(findings, edge_map, taxon_query)
     edge = edge_map.get(edge_key)
     if edge is None:
+        return None
+    if taxon_query and not _edge_matches_taxon_query(edge, matched_taxon_ids):
         return None
 
     dominant_pattern, total_support = _directional_edge_pattern(edge)

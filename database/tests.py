@@ -401,6 +401,32 @@ class BrowserViewTests(TestCase):
         self.assertContains(response, 'Descendants')
         self.assertContains(response, 'Faecalibacterium prausnitzii')
 
+    def test_taxon_detail_includes_disease_graph_launch_link_for_leaf_taxon(self):
+        response = self.client.get(reverse('database:taxon-detail', args=[self.taxon.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            f'{reverse("core:disease-network")}?branch={self.taxon.pk}&amp;group_rank=leaf',
+        )
+
+    def test_taxon_detail_includes_disease_graph_launch_link_for_ancestor_taxon(self):
+        genus = Taxon.objects.create(
+            scientific_name='Faecalibacterium',
+            rank='genus',
+        )
+        self.taxon.parent = genus
+        self.taxon.save(update_fields=['parent'])
+        self._attach_taxon_to_branch(genus, self.taxon)
+
+        response = self.client.get(reverse('database:taxon-detail', args=[genus.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            f'{reverse("core:disease-network")}?branch={genus.pk}&amp;group_rank=genus',
+        )
+
     def test_taxon_detail_lineage_starts_at_cellular_root_when_present(self):
         root_taxon = Taxon.objects.create(
             scientific_name='root',

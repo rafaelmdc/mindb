@@ -1,5 +1,10 @@
+from urllib.parse import urlencode
+
 from django.db.models import Q
+from django.urls import reverse
 from django.views.generic import DetailView, ListView, TemplateView
+
+from core.graph_payloads import GRAPH_GROUPING_RANKS
 
 from .models import (
     Comparison,
@@ -412,19 +417,28 @@ class TaxonDetailView(DetailView):
             for finding in quantitative
         }
         lineage_nodes = [path.ancestor for path in lineage]
+        descendant_count = TaxonClosure.objects.filter(ancestor=taxon, depth__gt=0).count()
+        disease_graph_params = {
+            'branch': taxon.pk,
+        }
+        if descendant_count == 0:
+            disease_graph_params['group_rank'] = 'leaf'
+        elif taxon.rank in GRAPH_GROUPING_RANKS and taxon.rank != 'leaf':
+            disease_graph_params['group_rank'] = taxon.rank
         context['qualitative_count'] = qualitative.count()
         context['quantitative_count'] = quantitative.count()
         context['study_count'] = len(study_ids)
         context['lineage'] = self._trim_display_lineage(lineage_nodes)
         context['child_taxa'] = children[:12]
         context['child_taxa_count'] = children.count()
-        context['descendant_count'] = TaxonClosure.objects.filter(ancestor=taxon, depth__gt=0).count()
+        context['descendant_count'] = descendant_count
         context['branch_qualitative_count'] = (
             QualitativeFinding.objects.filter(taxon__closure_ancestors__ancestor=taxon).distinct().count()
         )
         context['branch_quantitative_count'] = (
             QuantitativeFinding.objects.filter(taxon__closure_ancestors__ancestor=taxon).distinct().count()
         )
+        context['disease_graph_url'] = f"{reverse('core:disease-network')}?{urlencode(disease_graph_params)}"
         context['recent_qualitative_findings'] = qualitative.order_by('comparison__label', 'direction')[:10]
         context['recent_quantitative_findings'] = quantitative.order_by('group__name', 'value_type')[:10]
         return context

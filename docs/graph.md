@@ -40,6 +40,8 @@ Both graph pages support:
 
 Both pages also expose per-engine layout controls. Cytoscape and ECharts use different parameter sets and defaults, so the visible sliders change when the engine changes.
 
+Shared filter names do not always have identical semantics across both graphs. In particular, the disease graph taxon-detail launch uses the exact lineage-aware `branch` filter plus an explicit `group_rank`, while the disease graph `taxon` field remains a free-text finding-level filter.
+
 ## Shared interactions
 
 Both graph pages now support the same core interaction model in Cytoscape and ECharts:
@@ -61,6 +63,7 @@ The disease graph is a comparison-centered qualitative network.
 - enriched taxa are rendered as one taxon role column
 - depleted taxa are rendered as a separate taxon role column
 - edges aggregate leaf-level findings into the selected grouping rank
+- taxon-detail deep links into this graph use `branch=<taxon_id>` with a matching `group_rank`, rather than relying on the free-text `taxon` query
 
 Canonical documentation:
 

@@ -393,6 +393,53 @@ class DirectionalTaxonNetworkTests(TestCase):
         self.assertEqual(response.context['graph_data']['summary']['opposite_direction_edge_count'], 1)
         self.assertEqual(response.context['graph_data']['summary']['mixed_edge_count'], 0)
 
+    def test_directional_taxon_network_page_filters_edges_by_taxon_after_pair_generation(self):
+        response = self.client.get(
+            reverse('core:co-abundance-network'),
+            {
+                'group_rank': 'leaf',
+                'taxon': 'Blautia wexlerae',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['graph_data']['summary']['edge_count'], 2)
+        edge_pairs = {
+            frozenset({edge['data']['source_label'], edge['data']['target_label']})
+            for edge in response.context['graph_data']['edges']
+        }
+        self.assertEqual(
+            edge_pairs,
+            {
+                frozenset({'Blautia wexlerae', 'Roseburia intestinalis'}),
+                frozenset({'Blautia wexlerae', 'Bacteroides fragilis'}),
+            },
+        )
+
+    def test_directional_taxon_network_page_matches_family_query_to_descendant_leaf_edges(self):
+        response = self.client.get(
+            reverse('core:co-abundance-network'),
+            {
+                'group_rank': 'leaf',
+                'taxon': 'Lachnospiraceae',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['graph_data']['summary']['edge_count'], 3)
+        edge_pairs = {
+            frozenset({edge['data']['source_label'], edge['data']['target_label']})
+            for edge in response.context['graph_data']['edges']
+        }
+        self.assertEqual(
+            edge_pairs,
+            {
+                frozenset({'Blautia wexlerae', 'Roseburia intestinalis'}),
+                frozenset({'Blautia wexlerae', 'Bacteroides fragilis'}),
+                frozenset({'Roseburia intestinalis', 'Bacteroides fragilis'}),
+            },
+        )
+
     def test_directional_taxon_network_page_groups_by_rank(self):
         response = self.client.get(reverse('core:co-abundance-network'), {'group_rank': 'genus'})
 
@@ -472,6 +519,22 @@ class DirectionalTaxonNetworkTests(TestCase):
         self.assertEqual(response.context['edge_evidence']['total_support'], 2)
         self.assertEqual(response.context['comparison_page_obj'].paginator.count, 2)
         self.assertEqual(response.context['finding_page_obj'].paginator.count, 4)
+
+    def test_co_abundance_edge_detail_page_allows_lineage_aware_taxon_query(self):
+        response = self.client.get(
+            reverse('core:co-abundance-edge-detail'),
+            {
+                'group_rank': 'leaf',
+                'taxon': 'Lachnospiraceae',
+                'pattern': 'all',
+                'min_support': '1',
+                'source_taxon': self.taxon_a.pk,
+                'target_taxon': self.taxon_c.pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['edge_evidence']['dominant_pattern'], 'opposite_direction')
 
     def test_co_abundance_edge_detail_page_404s_when_edge_is_filtered_out(self):
         response = self.client.get(

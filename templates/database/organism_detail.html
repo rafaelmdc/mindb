@@ -116,6 +116,7 @@
   <div class="col-lg-8">
     <div class="card shadow-sm data-shell mb-4">
       <div class="card-body d-flex flex-wrap gap-2">
+        <a class="btn btn-primary btn-sm" href="{{ disease_graph_url }}">Open in disease graph</a>
         <a class="btn btn-outline-primary btn-sm" href="{% url 'database:qualitativefinding-list' %}?taxon={{ taxon.pk }}">Leaf qualitative findings ({{ qualitative_count }})</a>
         <a class="btn btn-outline-primary btn-sm" href="{% url 'database:quantitativefinding-list' %}?taxon={{ taxon.pk }}">Leaf quantitative findings ({{ quantitative_count }})</a>
         <a class="btn btn-outline-secondary btn-sm" href="{% url 'database:qualitativefinding-list' %}?branch={{ taxon.pk }}">Branch qualitative findings ({{ branch_qualitative_count }})</a>

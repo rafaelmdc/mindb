@@ -88,6 +88,8 @@ Supported renderers:
 
 As with the disease graph, the visible layout sliders are renderer-specific.
 
+Co-abundance taxon filtering is applied after pair generation, not when loading the raw findings queryset. This preserves the full within-comparison taxon context needed to build edges, then keeps only edges involving the queried taxon or its lineage descendants or ancestors that remain visible at the selected grouping rank.
+
 ## Node semantics
 
 Each node represents one grouped taxon at the selected rank.

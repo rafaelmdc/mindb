@@ -164,6 +164,11 @@ Validation:
 
 ### Phase 3: Open highlighted taxa in the browser
 
+Status:
+
+- implemented for disease-graph launches from the taxon detail page
+- co-abundance launch deferred because it needs a different relation-aware filter contract
+
 Goal:
 
 - let users open a selected taxon from the taxon browser directly into a graph view filtered to that taxon
@@ -176,11 +181,9 @@ Why third:
 
 Scope:
 
-- from the taxon page, add actions that open the desired graph with the taxon query prefilled
-- the graph should load already filtered to that taxon so it primarily shows that taxon’s relations
-- first version can support both graph targets:
-  - disease graph
-  - co-abundance graph
+- from the taxon page, add actions that open the desired graph with filters that preserve the intended taxonomic scope
+- the graph should load already narrowed to the selected taxon page context
+- current implementation covers the disease graph only
 
 Recommended first implementation:
 
@@ -189,18 +192,18 @@ Recommended first implementation:
   - optionally taxon list rows later
 - the launch should point to graph routes with GET params such as:
   - disease graph:
-    `/graph/disease/?taxon=<scientific_name>`
-  - co-abundance graph:
-    `/graph/co-abundance/?taxon=<scientific_name>`
-- keep using the existing graph `taxon` query parameter rather than inventing a second filter path
+    `/graph/disease/?branch=<taxon_id>&group_rank=<taxon_rank_or_leaf>`
+- use the exact `branch` filter for disease-graph launches so ancestor taxa open as lineage scopes instead of text matches
+- for leaf taxa, set `group_rank=leaf`
+- for supported ancestor ranks such as `genus` or `family`, set `group_rank` to the viewed taxon rank
 
 Recommended UX:
 
 - on a taxon detail page, show actions such as:
   - `Open in disease graph`
-  - `Open in co-abundance graph`
-- when the graph loads, the `taxon` search input should already contain that taxon name
-- the resulting graph should show only the relations that survive the existing graph filters for that taxon query
+- when the disease graph loads, the branch filter should already reflect the selected taxon and the grouping rank should match the viewed taxon context
+- the resulting graph should show the selected lineage scope without depending on free-text taxon matching
+- do not expose a co-abundance launch until its taxon-filter contract is intentionally designed
 
 Likely files:
 
@@ -212,15 +215,15 @@ Implementation notes:
 
 - do not add backend session state for this
 - use simple GET links so the graph URL is bookmarkable and shareable
-- prefer taxon scientific name for the first version because the graph already supports name-based taxon search
-- if exact matching becomes necessary later, add an optional taxon ID graph filter rather than replacing the text query immediately
+- prefer exact taxon identity for browser launches when the graph already supports an exact branch filter
+- keep the disease graph `taxon` text input as a separate free-text filter rather than overloading it with branch semantics
 
 Validation:
 
 - open a taxon detail page
-- launch disease graph and confirm the taxon query field is prefilled
-- launch co-abundance graph and confirm the taxon query field is prefilled
-- confirm the resulting graph is narrowed to that taxon’s visible relations
+- launch disease graph from a leaf taxon and confirm `branch` and `group_rank=leaf` are present
+- launch disease graph from an ancestor taxon and confirm `branch` and the matching ancestor `group_rank` are present
+- confirm the resulting graph is narrowed to the selected lineage scope
 
 ### Phase 4: Replace large graph payload tables with paged supporting views
 

@@ -251,7 +251,6 @@ class DirectionalTaxonGraphMixin:
 
         study_id = self.get_study_id()
         disease_query = self.get_disease_query()
-        taxon_query = self.get_taxon_query()
         branch_id = self.get_branch_id()
 
         if study_id:
@@ -261,11 +260,6 @@ class DirectionalTaxonGraphMixin:
                 Q(comparison__group_a__condition__icontains=disease_query)
                 | Q(comparison__group_a__name__icontains=disease_query)
                 | Q(comparison__label__icontains=disease_query)
-            )
-        if taxon_query:
-            queryset = queryset.filter(
-                Q(taxon__scientific_name__icontains=taxon_query)
-                | Q(taxon__rank__icontains=taxon_query)
             )
         if branch_id:
             queryset = queryset.filter(taxon__closure_ancestors__ancestor_id=branch_id).distinct()
@@ -297,6 +291,7 @@ class DirectionalTaxonNetworkView(DirectionalTaxonGraphMixin, TemplateView):
             grouping_rank=grouping_rank,
             minimum_support=minimum_support,
             pattern_filter=pattern_filter,
+            taxon_query=self.get_taxon_query(),
         )
         for edge in graph_data['edges']:
             edge['data']['edge_detail_url'] = self._build_edge_detail_url(edge['data'])
@@ -360,6 +355,7 @@ class DirectionalTaxonEdgeDetailView(DirectionalTaxonGraphMixin, TemplateView):
             grouping_rank=grouping_rank,
             minimum_support=minimum_support,
             pattern_filter=pattern_filter,
+            taxon_query=self.get_taxon_query(),
         )
         if edge_evidence is None:
             raise Http404('No co-abundance edge matched the current filters.')

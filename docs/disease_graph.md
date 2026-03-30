@@ -58,6 +58,13 @@ Supported renderers:
 
 Each renderer exposes its own layout controls. Cytoscape uses repulsion, edge-length scale, and gravity values tuned for its force layout. ECharts exposes repulsion, edge length, and gravity values for its own force graph implementation.
 
+Filter semantics:
+
+- `taxon` is a free-text filter on the finding taxon label and rank
+- `branch` is the lineage-aware exact taxon-scope filter backed by `TaxonClosure`
+
+The disease graph taxon-detail launch uses `branch`, not `taxon`, so the graph opens with an exact lineage scope instead of relying on text matching.
+
 ## Node semantics
 
 The graph uses two node types:
@@ -114,6 +121,14 @@ The disease graph includes context-menu shortcuts into the browser:
 - edge -> supporting qualitative finding list filtered by disease, branch, and direction grouping
 
 These shortcuts are the intended path from a summary edge back to row-level evidence.
+
+The taxon browser also includes an `Open in disease graph` action. That launch uses:
+
+- `branch=<taxon_id>`
+- `group_rank=leaf` for leaf taxa
+- `group_rank=<taxon.rank>` for supported ancestor ranks such as `genus` or `family`
+
+This keeps the launch exact and bookmarkable while preserving a sensible default rollup for the selected taxon page.
 
 ## Summary cards
 
