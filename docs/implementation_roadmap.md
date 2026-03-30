@@ -232,7 +232,7 @@ Status:
 - implemented with paginated supporting-evidence tables on both graph pages
 - disease graph preview rows link into paginated comparison and qualitative-finding browser views
 - co-abundance preview rows link into the paginated edge evidence page
-- evidence-table page changes happen client-side from the loaded graph JSON, so the graph canvas is not rebuilt on normal pagination clicks
+- evidence-table page changes happen client-side from the loaded graph JSON, keep `edge_page` in the URL, and do not rebuild the graph canvas on normal pagination clicks
 
 Goal:
 

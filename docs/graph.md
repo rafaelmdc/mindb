@@ -55,7 +55,7 @@ Both graph pages now support the same core interaction model in Cytoscape and EC
 
 The current implementation keeps this state entirely client-side. No graph selection is stored in the database or session.
 
-The supporting-evidence tables on both graph pages also paginate client-side from the already-loaded graph JSON. Normal page-number clicks update only the evidence table and URL state instead of rebuilding the graph, while direct full-page loads still have a server-rendered fallback.
+The supporting-evidence tables on both graph pages also paginate client-side from the already-loaded graph JSON. Normal page-number clicks update only the evidence table and the `edge_page` URL state instead of rebuilding the graph, while direct full-page loads still use the server-rendered first page as a fallback.
 
 ## Disease graph
 
