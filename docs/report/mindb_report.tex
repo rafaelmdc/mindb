@@ -1,0 +1,157 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{etoolbox}
+\usepackage{placeins}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{ragged2e}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=black,
+    urlcolor=blue!50!black,
+    pdftitle={MINDb Project Report},
+    pdfauthor={},
+}
+
+\setlength{\parskip}{0.65em}
+\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.15}
+\setlength{\bibsep}{0pt plus 0.2ex}
+\widowpenalty=10000
+\clubpenalty=10000
+\displaywidowpenalty=10000
+
+\makeatletter
+\newcommand{\NeedSubsectionSpace}[1]{%
+    \par
+    \begingroup
+    \dimen@=#1\relax
+    \dimen@ii=\pagegoal
+    \advance\dimen@ii by -\pagetotal
+    \ifdim \dimen@>\dimen@ii
+        \vfil\break
+    \fi
+    \endgroup
+}
+\makeatother
+
+\pretocmd{\section}{\NeedSubsectionSpace{12\baselineskip}}{}{}
+\pretocmd{\subsection}{\NeedSubsectionSpace{10\baselineskip}}{}{}
+
+\definecolor{reportaccent}{HTML}{184E5B}
+\definecolor{reportmuted}{HTML}{5A6570}
+
+\newcommand{\projectname}{MINDb}
+\newcommand{\reporttitle}{Microbiome Interaction Network Database}
+\newcommand{\reportsubtitle}{A structured platform for microbiome literature curation, exploration, and taxonomy-aware evidence integration}
+\newcommand{\reportauthor}{Rafael Correia}
+\newcommand{\reportprogramme}{Innovhealth 2nd Edition}
+\newcommand{\reportsupervisor}{Clara Pereira}
+\newcommand{\reportinstitution}{RISE-Health, Center for Translational Health and Medical Biotechnology Research}
+\newsavebox{\reportabstractbox}
+\newcommand{\placeholderfigure}[2]{%
+    \fbox{%
+        \parbox[c][#1][c]{0.9\linewidth}{%
+            \centering
+            \textbf{Figure placeholder}\\[0.5em]
+            #2
+        }%
+    }%
+}
+
+\newenvironment{reportabstract}{%
+    \begin{center}
+    \begin{lrbox}{\reportabstractbox}
+        \begin{minipage}{0.86\textwidth}
+        \centering{\normalsize\bfseries\color{reportaccent}Abstract\par}
+        \vspace{0.75em}
+        \small
+        \justifying
+}{%
+        \end{minipage}%
+    \end{lrbox}
+    \setlength{\fboxsep}{14pt}%
+    \setlength{\fboxrule}{0.8pt}%
+    \noindent\fcolorbox{reportaccent!30}{reportaccent!3}{\usebox{\reportabstractbox}}%
+    \end{center}
+}
+
+\newcommand{\makereporttitle}{%
+    \thispagestyle{empty}
+    \begin{center}
+        \vspace*{0.05\textheight}
+
+        {\Large\textsc{\projectname}\par}
+        \vspace{0.9em}
+        {\Huge\bfseries \reporttitle\par}
+        \vspace{0.7em}
+        {\large\color{reportmuted}\parbox{0.84\textwidth}{\centering \reportsubtitle}\par}
+
+        \vspace{1.5em}
+        {\color{reportaccent}\rule{0.34\textwidth}{1.1pt}\par}
+        \vspace{1.2em}
+        \begin{minipage}[t]{0.38\textwidth}
+            \centering
+            {\small\textsc{Author}\par}
+            \vspace{0.35em}
+            {\Large \reportauthor\par}
+        \end{minipage}
+        \hspace{0.05\textwidth}
+        \begin{minipage}[t]{0.38\textwidth}
+            \centering
+            {\small\textsc{Supervision}\par}
+            \vspace{0.35em}
+            {\Large\bfseries \reportsupervisor\par}
+        \end{minipage}
+
+        \vspace{1.5em}
+        {\small\color{reportmuted}
+        \begin{minipage}{0.72\textwidth}
+            \centering
+            {\textsc{Programme}\\[0.25em]}
+            \reportprogramme\\[0.75em]
+            {\textsc{Institution}\\[0.25em]}
+            \parbox{0.86\linewidth}{\centering \reportinstitution}\par
+        \end{minipage}\par
+        }
+    \end{center}
+    \vspace{0.8em}
+}
+
+\begin{document}
+
+\makereporttitle
+
+\begin{reportabstract}
+\projectname{} is a Django-based platform for curating and exploring microbiome findings reported across the scientific literature. The project was motivated by a practical problem: microbiome evidence is distributed across many papers and is difficult to compare because studies differ in cohort definitions, metadata quality, taxonomic naming, and reporting style. Instead of storing only paper-level notes or flat organism lists, \projectname{} models study context explicitly through studies, groups, comparisons, taxa, and finding records. This makes it possible to preserve how evidence was reported while still supporting structured querying and exploration.
+
+The implemented system combines a PostgreSQL database, a server-rendered web interface, an admin-oriented import workflow, and a taxonomy support component called Taxon Bridge. Qualitative findings such as enriched or depleted taxa are stored alongside quantitative per-group measurements when available, and optional diversity metrics can also be represented. The result is an early but functional prototype that provides a solid foundation for centralized microbiome evidence integration, reproducible curation, and future graph-based analysis.
+\end{reportabstract}
+
+\input{sections/01_introduction}
+\input{sections/02_problem_and_rationale}
+\input{sections/03_conceptual_design_and_data_logic}
+\input{sections/04_implementation}
+\input{sections/05_taxon_bridge}
+\input{sections/06_website_and_platform_presentation}
+\input{sections/07_current_state_limitations_and_future_work}
+\input{sections/08_conclusion}
+
+\begingroup
+\small
+\bibliographystyle{abbrvnat}
+\bibliography{references}
+\endgroup
+
+\end{document}

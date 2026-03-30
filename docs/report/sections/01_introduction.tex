@@ -1,0 +1,22 @@
+\section{Introduction}
+
+The human microbiome has become an important topic in biomedical and bioinformatics research because microbial communities are increasingly linked to health, disease, treatment response, and environmental exposure \citep{lynch2016human}. A large number of microbiome studies now report associations between specific taxa and disease states, as well as broader community-level trends such as altered diversity or shifts in composition. At the same time, even healthy individuals show substantial microbiome variation across body sites and between subjects, which already makes interpretation and comparison non-trivial before methodological differences are considered \citep{hmp2012structure}. Recent work also continues to emphasize that microbiome data, metadata, and analysis workflows remain difficult to share, compare, and reuse consistently across studies \citep{huttenhower2023sharing,zass2024toolkit}.
+
+This project addresses that problem through \projectname{}, the Microbiome Interaction Network Database. The aim of the platform is not simply to archive papers, but to curate literature-derived evidence in a form that is structured enough to support later querying, comparison, and visualization. In particular, the project is designed to preserve study context rather than collapsing findings into decontextualized organism lists. A taxon reported as increased in one subgroup versus another should remain attached to the comparison that produced that statement. This general need for structured cross-study comparison has also been recognized by recent community curation efforts for microbiome differential-abundance signatures \citep{geistlinger2024bugsigdb}.
+
+The core goals of the project were therefore to:
+
+\begin{itemize}[leftmargin=1.5em]
+    \item centralize microbiome literature evidence in one curated platform;
+    \item represent studies, cohorts, comparisons, taxa, and findings explicitly;
+    \item support both qualitative and quantitative evidence;
+    \item improve reproducibility by keeping import provenance and structured records;
+    \item provide a web interface for browsing and exploration; and
+    \item establish a practical foundation for later meta-analysis and network-based interpretation.
+\end{itemize}
+
+The current system should be understood as an early but working prototype. The priority was to build a correct and extensible structure for curation and exploration, rather than a fully polished production system. In practice, that meant focusing on a dependable data model, a clear import path, and browseable interfaces that already demonstrate the value of structured evidence capture.
+
+The intended audience for the platform is also broader than one-off internal note taking. A resource such as \projectname{} can support the work of students, curators, and researchers who need to revisit the literature repeatedly, inspect how a finding was contextualized in a paper, and compare evidence across studies without reconstructing the same spreadsheet logic each time. It is also meant to support later reuse through filtering, graph-based exploration, and provenance-aware review of imported findings. This practical reuse case strongly influenced the emphasis on explicit relationships and browseable records.
+
+The rest of this report follows that same progression from problem to implementation. It first motivates the need for structured microbiome curation, then describes the data model, the implementation architecture, the taxonomy support workflow, the web interface, and the main limitations that remain in the current prototype.

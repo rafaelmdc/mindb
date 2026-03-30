@@ -1,0 +1,59 @@
+\section{Data Model and Design Logic}
+
+\subsection{Core entities}
+
+The conceptual model of \projectname{} revolves around a small set of linked entities that capture the structure of literature-derived evidence. The main entities are study records, study groups, comparisons, taxa, and findings. This keeps the design compact while still retaining the context needed for later analysis.
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{Main data entities in \projectname{} and their roles.}
+    \label{tab:entities}
+    \begin{tabularx}{0.98\linewidth}{>{\raggedright\arraybackslash}p{3.8cm} >{\raggedright\arraybackslash}X}
+        \toprule
+        \textbf{Entity} & \textbf{Role in the platform} \\
+        \midrule
+        Studies & Publication-level records with bibliographic context such as title, DOI, journal, year, and notes. \\
+        Groups & Study arms, cohorts, subgroups, or other analytical populations within a study. \\
+        Comparisons & Explicit directional contrasts between two groups. \\
+        Taxa & Canonical microbial entities used throughout the database. \\
+        Qualitative findings & Direction-of-change evidence for one taxon in one comparison, such as enriched, depleted, increased, or decreased. \\
+        Quantitative findings & Numeric values for one taxon in one group, for example relative abundance measurements. \\
+        Metadata variables and values & Lightweight structured metadata for groups without overloading the main schema with many sparse columns. \\
+        Import batches & Provenance records describing validation status and import outcomes. \\
+        Diversity metrics & Optional alpha- and beta-diversity measurements when these are available. \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+This structure reflects the reality of microbiome curation. Papers contain multiple groups, groups participate in comparisons, and findings emerge from those comparisons or from measurements observed within those groups. The schema is therefore designed to mirror the logic of the evidence rather than forcing it into a simpler but less accurate layout.
+
+\subsection{Schema design principles}
+
+Several design principles guided the model. First, common and analytically important concepts are stored as explicit tables rather than hidden inside generic metadata fields. This is why studies, groups, comparisons, taxa, and findings remain first-class records. Second, the schema keeps the direct columns focused on information that is consistently useful, while sparse or variable study annotations can be handled through a lightweight metadata layer. Third, provenance is treated as part of the data model rather than as an afterthought, because imported evidence may need to be traced back to a particular curation batch.
+
+Another important principle is that the schema should support browsing as well as storage. It is not enough to create a technically valid set of tables if the resulting records are difficult to inspect or explain. The current model was therefore shaped with list views, detail views, admin editing, and future graph serialization in mind.
+
+\subsection{Qualitative and quantitative evidence}
+
+The platform distinguishes between two major types of evidence. Qualitative findings capture direction-of-change statements such as enriched, depleted, increased, or decreased. These are common in microbiome papers and are often the only practically extractable outcome from narrative or table-based reporting. In \projectname{}, a qualitative finding is always tied to a comparison because the statement only makes sense relative to the two groups being contrasted.
+
+Quantitative findings capture numeric values for one taxon in one group. This may include relative abundance values or similar per-group measures when they are explicitly reported. This design avoids an older but misleading idea of modeling abundance as a relationship between organism A and organism B. In practice, abundance is a property of a taxon within a group.
+
+Together, these two evidence types allow the system to store both coarse and fine-grained information. Even when exact values are unavailable, the platform can still capture the reported biological direction. When values are available, they can be stored in a way that remains consistent with the broader data model.
+
+\subsection{Explicit comparisons as core units}
+
+Comparisons are central because they capture the analytical claim being made by a study. In many papers, the biologically meaningful result is not ``this taxon exists'' but ``this taxon differs between these two groups''. By representing the comparison explicitly, \projectname{} makes later querying more meaningful. It becomes possible to ask which taxa are repeatedly reported as enriched in disease-related groups, how evidence changes when comparing severe versus mild cases rather than disease versus control, and to aggregate directional findings into disease--taxon or comparison--taxon networks without losing sight of where the evidence came from.
+
+\subsection{Taxonomy-aware representation}
+
+Taxonomy handling is an important extension of the core model. The implemented platform uses canonical taxon records together with taxon names and a closure table for lineage traversal. This allows the system to keep one normalized taxonomic representation while still remembering alternate names and supporting lineage-aware filtering.
+
+This matters because literature findings are often reported at mixed ranks. A user may want to browse evidence at the leaf level, or instead group results by genus, family, or phylum. A taxonomy-aware representation makes that possible without rewriting the underlying curated data.
+
+\subsection{Data integrity and provenance}
+
+The conceptual model also depends on integrity rules. Studies should not duplicate the same DOI unnecessarily, groups should be unique within a study, and comparisons should connect distinct groups that belong to the correct study. Similarly, qualitative findings and quantitative findings should remain unique at the level of their main identifying context. These constraints are important because curated literature data can easily accumulate accidental duplicates when multiple import rounds or manual edits take place.
+
+Provenance is equally important. By linking imported records to an import batch, the platform preserves a trace of how data entered the system. This supports review, debugging, and later refinement of the curation process. In a scientific database, knowing where a record came from is part of making it trustworthy.

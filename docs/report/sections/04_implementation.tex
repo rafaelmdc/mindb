@@ -1,0 +1,63 @@
+\section{Implementation}
+
+\subsection{Technology stack}
+
+The implemented prototype uses Django as the web framework and PostgreSQL as the underlying relational database. This combination was chosen because it provides strong support for structured models, migrations, validation, and admin-based data management while remaining practical for a student-scale project. Bootstrap is used for the frontend interface so that the site remains readable and responsive without introducing heavy client-side complexity.
+
+For graph logic, the project uses Python-based network construction and a browser rendering layer. The graph-related processing is handled on the backend, while the resulting node and edge data are delivered to the frontend for interactive display. This keeps the data logic close to the database and avoids the need for a separate analytics service.
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{Main implementation components and their roles in the current prototype.}
+    \label{tab:stack}
+    \begin{tabularx}{0.98\linewidth}{>{\raggedright\arraybackslash}p{3.6cm} >{\raggedright\arraybackslash}X}
+        \toprule
+        \textbf{Component} & \textbf{Role} \\
+        \midrule
+        Web framework (Django) & Routing, ORM access, forms, admin integration, and server-rendered views. \\
+        Database (PostgreSQL) & Persistent storage for curated studies, comparisons, taxa, findings, metadata, and provenance. \\
+        Interface layer (Bootstrap) & Responsive presentation for the public site and browser pages. \\
+        Admin interface & Manual curation environment for staff users and schema-aware record editing. \\
+        Import services & Preview-first parsing, validation, duplicate checks, and batch execution for CSV and workbook ingestion. \\
+        Taxonomy support (Taxon Bridge) & Name resolution and lineage-aware taxonomic support during preview and import. \\
+        Graph services & Backend construction of lineage-aware qualitative graph payloads for interactive exploration. \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\subsection{Application structure}
+
+The current implementation is organized around a few focused Django apps. The database layer defines the core models for studies, groups, comparisons, taxa, findings, metadata, and import provenance. The browser layer provides server-rendered list and detail pages with searching, filtering, sorting, and pagination. The core web layer provides the homepage, staff workspace, and graph view. A dedicated import layer handles upload, validation, preview, and confirm steps for both contract CSV files and a curator workbook.
+
+This structure is intentionally conservative. The goal was not to build a complex single-page application, but a maintainable system whose behavior remains easy to inspect. Server-rendered pages are well suited to a curation platform because they are simple, stable, and fit well with Django's built-in strengths.
+
+This choice also helps with long-term maintainability. For a data-centric project, complexity in the frontend can easily exceed the real needs of the platform. By keeping the application largely server-rendered, the implementation effort remains focused on schema correctness, import reliability, and query behavior rather than on synchronizing large amounts of duplicated client-side state.
+
+\subsection{Import and curation workflow}
+
+A major practical requirement of the project was support for staged data ingestion. Literature curation is error-prone, and taxonomy resolution can be uncertain, so it is risky to write directly to the database without review. The implemented import workflow therefore follows a preview-first pattern.
+
+Users upload either a structured CSV file or the curator Excel workbook through an admin-facing interface. The system parses the file, checks required columns, validates relationships, detects duplicates, and builds a preview of rows that are ready to import. Workbook ingestion also filters records according to paper status and resolves cross-sheet identifiers before any write occurs.
+
+The import layer creates and updates \texttt{ImportBatch} records so that each batch has provenance and summary statistics. This is important for traceability. If a curation batch later needs to be reviewed, the system can show what was imported, from which source, and with what success or error counts.
+
+The preview step is particularly important because it separates parsing from commitment. Curators can inspect valid rows, validation errors, and duplicates before any database write occurs. For workbook-based imports, this also allows the system to surface skipped rows and taxon-resolution issues in a transparent way. In practice, this is one of the strongest safeguards in the project because it reduces the risk of silently introducing low-quality data.
+
+The import workflow also reflects a pragmatic view of curation. Not every problematic row should block an entire batch. Some issues should lead to a clear warning and a skipped record rather than a total failure. This is especially true for taxonomy-related edge cases, where the correct operational behavior may be to defer uncertain rows for later review while still importing the rest of the validated material.
+
+\subsection{Taxonomy persistence and lineage support}
+
+The current implementation stores taxa as canonical records and keeps additional supporting tables for names and lineage traversal. A \texttt{TaxonName} table captures synonyms, aliases, and imported-as-written names, while a closure table stores ancestor--descendant relationships. This enables branch filtering, lineage display, and rank-based rollup.
+
+This is especially valuable for qualitative graph exploration. Findings are stored at the reported leaf taxon, but graph queries can later roll them up to a higher rank such as genus or family. In other words, the database preserves detail while still supporting more interpretable summaries.
+
+The lineage-aware design also improves browsing. A user may wish to inspect all taxa inside one branch, review the lineage of a selected taxon, or compare evidence at different levels of taxonomic granularity. These tasks become much easier when ancestry is stored explicitly instead of reconstructed ad hoc from imported names.
+
+\subsection{Interface and graph view}
+
+The website exposes several user-facing views. Public pages include a homepage, a browser landing page, and list/detail views for studies, groups, comparisons, taxa, qualitative findings, and quantitative findings. These pages support standard exploration tasks such as search, filter, sort, and pagination.
+
+In addition, the current prototype includes a graph view derived from qualitative findings. This view allows evidence to be filtered by study, direction, disease-like target group, taxon, taxonomic branch, and taxonomic rank. The graph is arranged around a simple but useful semantic layout: disease nodes in the center, taxa enriched in disease on one side, and taxa depleted in disease on the other. This design is grounded in the directional comparison model rather than in abstract co-occurrence alone.
+
+Although visually simple, this graph view demonstrates one of the broader goals of the project: database structure should enable multiple forms of interpretation. The same curated records that power ordinary list and detail pages can also be serialized into a higher-level disease--taxon view. This is a strong argument in favor of the underlying schema because it shows that explicit comparisons and finding records support both precise lookup and broader exploratory analysis.

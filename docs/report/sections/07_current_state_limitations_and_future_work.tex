@@ -1,0 +1,25 @@
+\section{Limitations and Future Directions}
+
+The current platform should be described as an early-stage but functional prototype. The core ideas have been implemented: structured models, browser views, a curation workflow, taxonomy-aware handling, and a graph layer derived from qualitative findings. This is enough to demonstrate that the project concept is technically viable and that the chosen data model supports meaningful exploration.
+
+At the same time, several limitations remain. Literature curation is still labor-intensive and requires domain-aware manual effort. Not all papers report findings in a clean or consistent form, so extraction remains partly interpretive. Metadata standardization is also challenging because published studies vary widely in what they report. Even with Taxon Bridge, taxonomy resolution is not always automatic; uncertain names still require human review, especially when papers use outdated terminology or ambiguous rank information.
+
+The current graph layer is useful but intentionally lightweight. It is designed as an exploration view over curated findings rather than as a full network analysis suite. Likewise, the platform has been optimized more for structural correctness and maintainability than for deployment hardening, interoperability, or large-scale automation.
+
+Another important limitation is evaluation scope. The project demonstrates architecture and workflow successfully, but it does not yet claim comprehensive literature coverage or large-scale analytical benchmarking. At this stage, the main achievement is the creation of a usable framework for curated evidence integration. Future evaluation could therefore focus not only on software robustness but also on curation consistency, breadth of database coverage, and the practical usefulness of the resulting dataset for downstream analysis.
+
+There are also trade-offs in the decision to keep the system intentionally compact. A lightweight architecture is easier to understand and maintain, but it means that some advanced features remain outside the current scope. These include automated literature mining, richer ontology support, more complex user roles, external programmatic APIs, and deeper analytical dashboards. None of these are impossible within the current direction, but they were not prioritized over the more fundamental problem of correct data representation.
+
+Natural directions for future work include:
+
+\begin{itemize}[leftmargin=1.5em]
+    \item broader literature coverage and larger curated datasets;
+    \item richer metadata normalization and controlled vocabularies;
+    \item a disease-standardization layer, analogous to Taxon Bridge, to normalize disease names, subgroup labels, and related controlled vocabulary across curated studies, potentially drawing on ontology harmonization efforts such as Mondo \citep{vasilevsky2025mondo};
+    \item more automated assistance for extraction and import preparation;
+    \item tighter taxonomy integration and continued improvement of resolution workflows;
+    \item additional graph summaries and comparative analysis features; and
+    \item stronger deployment, testing, and user-facing polish.
+\end{itemize}
+
+These are meaningful next steps, but they depend on the same foundation established here: a clear and defensible representation of studies, groups, comparisons, taxa, and findings.

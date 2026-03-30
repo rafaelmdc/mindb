@@ -1,0 +1,92 @@
+\begin{thebibliography}{10}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Geistlinger et~al.(2024)Geistlinger, Mirzayi, Zohra, Azhar, Elsafoury,
+  Grieve, Wokaty, Gamboa-Tuz, Sengupta, et~al.]{geistlinger2024bugsigdb}
+L.~Geistlinger, C.~Mirzayi, F.~Zohra, R.~Azhar, S.~Elsafoury, C.~Grieve,
+  J.~Wokaty, S.~D. Gamboa-Tuz, P.~Sengupta, et~al.
+\newblock Bugsigdb captures patterns of differential abundance across a broad
+  range of host-associated microbial signatures.
+\newblock \emph{Nature Biotechnology}, 42:\penalty0 790--802, 2024.
+\newblock \doi{10.1038/s41587-023-01872-y}.
+
+\bibitem[Huttenhower et~al.(2023)Huttenhower, Finn, and
+  McHardy]{huttenhower2023sharing}
+C.~Huttenhower, R.~D. Finn, and A.~C. McHardy.
+\newblock Challenges and opportunities in sharing microbiome data and analyses.
+\newblock \emph{Nature Microbiology}, 8\penalty0 (11):\penalty0 1960--1970,
+  2023.
+\newblock \doi{10.1038/s41564-023-01484-x}.
+
+\bibitem[Lynch and Pedersen(2016)]{lynch2016human}
+S.~V. Lynch and O.~Pedersen.
+\newblock The human intestinal microbiome in health and disease.
+\newblock \emph{New England Journal of Medicine}, 375\penalty0 (24):\penalty0
+  2369--2379, 2016.
+\newblock \doi{10.1056/NEJMra1600266}.
+
+\bibitem[Mirzayi et~al.(2021)Mirzayi, Renson, Zohra, Elsafoury, Geistlinger,
+  Kasselman, Eckenrode, van~de Wijgert, Loughman, et~al.]{mirzayi2021storms}
+C.~Mirzayi, A.~Renson, F.~Zohra, S.~Elsafoury, L.~Geistlinger, L.~J. Kasselman,
+  K.~Eckenrode, J.~van~de Wijgert, A.~Loughman, et~al.
+\newblock Reporting guidelines for human microbiome research: the storms
+  checklist.
+\newblock \emph{Nature Medicine}, 27:\penalty0 1885--1892, 2021.
+\newblock \doi{10.1038/s41591-021-01552-x}.
+
+\bibitem[Pelto et~al.(2025)Pelto, Auranen, Kujala, and
+  Lahti]{pelto2025elementary}
+J.~Pelto, K.~Auranen, J.~V. Kujala, and L.~Lahti.
+\newblock Elementary methods provide more replicable results in microbial
+  differential abundance analysis.
+\newblock \emph{Briefings in Bioinformatics}, 26\penalty0 (2):\penalty0
+  bbaf130, 2025.
+\newblock \doi{10.1093/bib/bbaf130}.
+
+\bibitem[{The Human Microbiome Project Consortium}(2012)]{hmp2012structure}
+{The Human Microbiome Project Consortium}.
+\newblock Structure, function and diversity of the healthy human microbiome.
+\newblock \emph{Nature}, 486:\penalty0 207--214, 2012.
+\newblock \doi{10.1038/nature11234}.
+
+\bibitem[Vasilevsky et~al.(2025)Vasilevsky, Toro, Matentzoglu, Flack, Mullen,
+  Hegde, Gehrke, Whetzel, Shwetar, Harris, et~al.]{vasilevsky2025mondo}
+N.~A. Vasilevsky, S.~Toro, N.~Matentzoglu, J.~E. Flack, K.~R. Mullen, H.~Hegde,
+  S.~Gehrke, P.~L. Whetzel, Y.~Shwetar, N.~L. Harris, et~al.
+\newblock Mondo: integrating disease terminology across communities.
+\newblock \emph{Genetics}, 2025.
+\newblock \doi{10.1093/genetics/iyaf215}.
+\newblock Published online 06 October 2025.
+
+\bibitem[Wirbel et~al.(2024)Wirbel, Essex, Forslund, and
+  Zeller]{wirbel2024benchmark}
+J.~Wirbel, M.~Essex, S.~K. Forslund, and G.~Zeller.
+\newblock A realistic benchmark for differential abundance testing and
+  confounder adjustment in human microbiome studies.
+\newblock \emph{Genome Biology}, 25\penalty0 (1):\penalty0 247, 2024.
+\newblock \doi{10.1186/s13059-024-03390-9}.
+
+\bibitem[Yilmaz et~al.(2011)Yilmaz, Kottmann, Field, Knight, Cole,
+  Amaral-Zettler, Gilbert, Karsch-Mizrachi, Johnston, et~al.]{yilmaz2011mixs}
+P.~Yilmaz, R.~Kottmann, D.~Field, R.~Knight, J.~R. Cole, L.~Amaral-Zettler,
+  J.~A. Gilbert, I.~Karsch-Mizrachi, A.~Johnston, et~al.
+\newblock Minimum information about a marker gene sequence (mimarks) and
+  minimum information about any (x) sequence (mixs) specifications.
+\newblock \emph{Nature Biotechnology}, 29\penalty0 (5):\penalty0 415--420,
+  2011.
+\newblock \doi{10.1038/nbt.1823}.
+
+\bibitem[Zass et~al.(2024)Zass, Mwapagha, Louis-Jacques, Allali, Mulindwa,
+  Kiran, Hanachi, Souiai, Mulder, and Oduaran]{zass2024toolkit}
+L.~Zass, L.~M. Mwapagha, A.~F. Louis-Jacques, I.~Allali, J.~Mulindwa, A.~Kiran,
+  M.~Hanachi, O.~Souiai, N.~Mulder, and O.~H. Oduaran.
+\newblock Advancing microbiome research through standardized data and metadata
+  collection: introducing the microbiome research data toolkit.
+\newblock \emph{Database}, 2024:\penalty0 baae062, 2024.
+\newblock \doi{10.1093/database/baae062}.
+
+\end{thebibliography}

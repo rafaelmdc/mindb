@@ -1,0 +1,23 @@
+\section{Taxon Bridge}
+
+\subsection{Rationale for Taxon Bridge}
+
+Taxonomy normalization is one of the most difficult parts of microbiome literature integration. Papers frequently use inconsistent naming, outdated labels, partially specified taxa, or mixed reporting levels. Without a dedicated resolution step, a database quickly accumulates duplicate or ambiguous organism entries, which reduces query quality and makes later aggregation unreliable.
+
+Taxon Bridge was developed as a supporting tool to address this issue. Its purpose is not to replace the main platform, but to strengthen it by providing a more reliable bridge between raw names found in the literature and the canonical taxonomy-aware records stored in \projectname{}.
+
+\subsection{Role in the workflow}
+
+In the implemented system, Taxon Bridge is used during preview and import to help resolve taxon names and obtain lineage information. When an incoming taxon can be resolved confidently, the platform can map it to a canonical taxonomic representation and store the corresponding lineage-aware payload. When resolution is uncertain, the system flags the row for review rather than silently forcing a potentially incorrect match.
+
+This behavior is important from a curation perspective. A microbiome evidence platform should not hide uncertainty inside the database. It is better to make ambiguous cases visible, preserve them in preview, and require a human decision when necessary.
+
+In practical terms, this makes Taxon Bridge part of the quality-control path. It is not only a convenience layer for prettier names. It helps determine whether a literature label can be trusted as a canonical taxon, whether lineage information can be attached safely, and whether a row should move forward automatically or be held back for curator review.
+
+\subsection{Contribution to data quality and extensibility}
+
+Taxon Bridge improves the platform in several ways. First, it reduces name fragmentation by linking literature labels to more stable canonical taxa. Second, it enables lineage-aware filtering and grouping because taxonomic ancestry can be stored explicitly rather than inferred ad hoc later. Third, it supports future extensibility: once organism handling is normalized properly, later tasks such as cross-study comparison, taxonomic rollup, and graph summarization become much more reliable.
+
+It is important, however, to present Taxon Bridge in proportion. The main project remains \projectname{}, the literature database and exploration platform. Taxon Bridge is an enabling component that improves organism handling, but it is not the central product of the project.
+
+This distinction matters from a project-report perspective as well. The novelty of \projectname{} lies in the full curation and exploration workflow: the data model, the database browser, the import process, and the early graph view. Taxon Bridge strengthens one crucial part of that workflow, namely taxonomic normalization, but its value is best understood in terms of how it improves the main platform.

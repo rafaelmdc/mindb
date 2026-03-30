@@ -1,0 +1,29 @@
+\section{Background and Motivation}
+
+\subsection{Challenges in comparing microbiome studies}
+
+Microbiome studies are heterogeneous in several ways. Different papers may define disease groups differently, use different controls, recruit from different cohorts, or report multiple subgroups within the same publication. Metadata quality is also inconsistent. Some studies clearly describe age, geography, cohort source, or sequencing details, while others report only a subset of that information. Even when papers investigate similar diseases, the comparison being made may not be equivalent. These issues have been serious enough that dedicated reporting guidelines, metadata toolkits, and curated comparison resources have been proposed to improve consistency and reproducibility across the field \citep{mirzayi2021storms,geistlinger2024bugsigdb,zass2024toolkit}. More generally, biomedical informatics research on disease ontologies continues to emphasize that inconsistent disease terminology and coding practices make cross-resource integration difficult unless they are harmonized into a computable common framework \citep{vasilevsky2025mondo}.
+
+Taxonomic reporting creates an additional challenge. Organisms may be reported using outdated names, synonyms, abbreviated labels, inconsistent capitalization, or different taxonomic ranks. One paper may report a genus while another reports a species within that genus. This makes direct aggregation difficult unless taxonomy is handled carefully. More broadly, the development of standards such as MIxS reflects the long-standing need for more structured and interoperable microbiome metadata and sample descriptions \citep{yilmaz2011mixs}.
+
+Finally, results are not always reported numerically. Many microbiome papers summarize findings as directional statements such as ``enriched in disease'', ``depleted in controls'', or ``increased relative abundance'', without publishing a consistent machine-readable table of values. STORMS was proposed in part because incomplete and inconsistent reporting makes microbiome studies harder to interpret and compare \citep{mirzayi2021storms}. More recent benchmarking work also shows that even downstream microbiome differential-abundance analysis still lacks methodological consensus, and that confounding and method choice can materially affect reproducibility and inferred biological conclusions \citep{wirbel2024benchmark,pelto2025elementary}. A useful platform therefore needs to represent both exact measurements and qualitative evidence.
+
+\subsection{Need for structured curation}
+
+Spreadsheets remain useful for manual curation, but they become limiting once the goal is systematic reuse. They do not naturally enforce relationships between records, reliable uniqueness constraints, or rich navigation across studies, groups, taxa, and findings. They also make provenance harder to track across repeated imports, edits, and revisions.
+
+A structured database offers clear advantages. It can preserve relationships explicitly, validate inputs, prevent inconsistent duplication, and support queries that would otherwise be cumbersome. Examples include finding taxa reported as depleted in a disease-related comparison, listing all groups belonging to a paper, or reviewing findings imported from one batch. This matters in a domain where small modeling mistakes can distort scientific interpretation.
+
+Recent microbiome-signature databases show that standardized curation makes findings easier to compare across conditions, body sites, and studies \citep{geistlinger2024bugsigdb}. At the same time, reviews of microbiome data sharing and metadata practice still argue that stronger standardization is needed for genuine interoperability and reuse \citep{huttenhower2023sharing,zass2024toolkit}. \projectname{} follows the same logic while preserving explicit study, group, comparison, and provenance context in a relational platform.
+
+\subsection{Importance of comparison context}
+
+A central design decision in \projectname{} is to preserve comparison context. A directional microbiome statement is incomplete if it is detached from the groups being compared. For example, the meaning of ``increased \textit{Bacteroides}'' depends on whether the comparison was disease versus healthy control, severe disease versus mild disease, or one cohort versus another.
+
+For this reason, the platform does not flatten the literature into simple taxon lists. Instead, it stores comparisons as first-class records and attaches qualitative findings to those comparisons. Quantitative values are linked to individual groups, because abundance values are properties of one group rather than a relationship between two taxa. This modeling choice is fundamental to the usefulness of the database.
+
+\subsection{Derived system requirements}
+
+Once these problems are stated clearly, they lead directly to a set of technical requirements. The platform must support structured records rather than free text alone, preserve publication and cohort context, tolerate incomplete reporting, and keep enough flexibility to store heterogeneous metadata without making the schema unmanageably large. It must also support a cautious curation workflow because imported literature data can contain ambiguity, especially in taxon naming.
+
+These requirements explain why the project combines a compact relational model with validation, provenance tracking, and taxonomy-aware resolution. In other words, the design is not only a software choice but a direct response to the shape of the source material.
