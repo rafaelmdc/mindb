@@ -8,9 +8,8 @@ Before making architectural, schema, or implementation decisions, read:
 
 - `README.md`
 - `docs/schema.md`
-- `docs/roadmap.md`
-- `docs/graph.md`
-- `docs/import_pipeline.md`
+- `roadmap.md`
+- `implementation_roadmap.md`
 
 If those documents conflict with the current code, prefer the documented architecture unless the user explicitly asks to revise it.
 

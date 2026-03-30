@@ -19,12 +19,12 @@ This roadmap reflects the current codebase state and the next practical steps fo
 3. Continue refining taxonomy-aware filtering and rollup behavior.
 4. Preserve admin usability and import traceability as workbook coverage grows.
 
-## Next likely implementation work
+## Next implementation work
 
 - right click to see list of values / show calculations in a user friendly way in co-occurance edges
 - print current graph selection
 - open taxa (in browser) highlighted in graph, via filter would be the easiest route
-- pages instead of listing all listings involved in graphs
+- have pages instead of listing all listings involved in graphs in a big table
 - change echarts rendering, so one can highlight a specific organism when clicking on it, mimicking cytoscape
 
 ## Constraints

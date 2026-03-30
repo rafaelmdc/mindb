@@ -263,59 +263,107 @@
     const echartsGravity = {{ layout_settings.echarts_gravity }};
     const echartsLabelZoomThreshold = 0.76;
     let labelsVisible = true;
-    let focusedNodeId = null;
+    const selectedNodeIds = new Set();
     let hoveredTaxonPk = null;
-    const buildFocusedNodeIds = () => {
-      if (!focusedNodeId) {
-        return new Set();
+    const focusedNodeOpacity = 1;
+    const contextNodeOpacity = 0.94;
+    const fadedNodeOpacity = 0.16;
+    const defaultEdgeOpacity = 0.66;
+    const focusedEdgeOpacity = 0.94;
+    const fadedEdgeOpacity = 0.08;
+    const buildEdgeKey = (sourceId, targetId) => `${sourceId}::${targetId}`;
+    const buildFocusState = () => {
+      if (selectedNodeIds.size === 0) {
+        return {
+          selectedNodeIds: new Set(),
+          contextNodeIds: new Set(),
+          activeEdgeKeys: new Set(),
+        };
       }
 
-      const focusedIds = new Set([focusedNodeId]);
+      const contextNodeIds = new Set();
+      const activeEdgeKeys = new Set();
       graphData.edges.forEach((edge) => {
-        if (edge.data.source === focusedNodeId) {
-          focusedIds.add(edge.data.target);
+        const sourceIsSelected = selectedNodeIds.has(edge.data.source);
+        const targetIsSelected = selectedNodeIds.has(edge.data.target);
+        if (!sourceIsSelected && !targetIsSelected) {
+          return;
         }
-        if (edge.data.target === focusedNodeId) {
-          focusedIds.add(edge.data.source);
+        activeEdgeKeys.add(buildEdgeKey(edge.data.source, edge.data.target));
+        if (!sourceIsSelected) {
+          contextNodeIds.add(edge.data.source);
+        }
+        if (!targetIsSelected) {
+          contextNodeIds.add(edge.data.target);
         }
       });
-      return focusedIds;
+      return {
+        selectedNodeIds: new Set(selectedNodeIds),
+        contextNodeIds,
+        activeEdgeKeys,
+      };
     };
-    const buildNodes = (showLabels, focusedNodeIds) => graphData.nodes.map((node) => {
+    const buildNodes = (showLabels, focusState) => graphData.nodes.map((node) => {
       const data = node.data;
-      const isFocused = focusedNodeIds.has(data.id);
+      const isFocused = focusState.selectedNodeIds.has(data.id);
+      const isContext = !isFocused && focusState.contextNodeIds.has(data.id);
+      const isFaded = focusState.selectedNodeIds.size > 0 && !isFocused && !isContext;
+      const nodeOpacity = isFocused
+        ? focusedNodeOpacity
+        : isContext
+          ? contextNodeOpacity
+          : isFaded
+            ? fadedNodeOpacity
+            : 1;
       return {
         id: data.id,
         name: data.label,
         taxon_pk: data.taxon_pk,
         value: data.degree,
         draggable: true,
-        symbolSize: Math.max(16, Math.min(30, 16 + (data.degree * 2))),
+        symbolSize: Math.max(16, Math.min(30, 16 + (data.degree * 2))) + (isFocused ? 4 : 0),
         itemStyle: isFocused ? {
           color: '#0f766e',
-          borderColor: '#f8fafc',
-          borderWidth: 2,
-          shadowBlur: 16,
+          borderColor: '#111827',
+          borderWidth: 4,
+          opacity: nodeOpacity,
+          shadowBlur: 18,
           shadowColor: 'rgba(15,23,32,0.22)',
+        } : isContext ? {
+          color: '#0f766e',
+          borderColor: '#475569',
+          borderWidth: 3,
+          opacity: nodeOpacity,
+          shadowBlur: 12,
+          shadowColor: 'rgba(15,23,32,0.12)',
         } : {
           color: '#0f766e',
           borderColor: '#f8fafc',
           borderWidth: 2,
+          opacity: nodeOpacity,
         },
         label: {
-          show: showLabels || isFocused,
+          show: showLabels || isFocused || isContext,
           color: '#0f1720',
           backgroundColor: 'rgba(255,255,255,0)',
           fontSize: 11,
-          fontWeight: isFocused ? 800 : 700,
+          fontWeight: isFocused ? 800 : (isContext ? 750 : 700),
           textBorderColor: 'rgba(248,250,252,0.92)',
           textBorderWidth: 3,
           textShadowColor: 'rgba(248,250,252,0.75)',
           textShadowBlur: 6,
+          opacity: isFaded ? 0.2 : 1,
         },
       };
     });
-    const buildLinks = (focusedNodeIds) => graphData.edges.map((edge) => ({
+    const buildLinks = (focusState) => graphData.edges.map((edge) => {
+      const isFocused = focusState.activeEdgeKeys.has(buildEdgeKey(edge.data.source, edge.data.target));
+      const edgeOpacity = focusState.selectedNodeIds.size === 0
+        ? defaultEdgeOpacity
+        : isFocused
+          ? focusedEdgeOpacity
+          : fadedEdgeOpacity;
+      return {
       source: edge.data.source,
       target: edge.data.target,
       value: edge.data.total_support,
@@ -327,22 +375,20 @@
               ? '#dc3545'
               : '#64748b',
         type: edge.data.dominant_pattern === 'mixed' ? 'dashed' : 'solid',
-        width: Math.max(1.6, Math.min(6, edge.data.total_support)),
-        opacity:
-          focusedNodeIds.size === 0
-            ? 0.66
-            : (focusedNodeIds.has(edge.data.source) && focusedNodeIds.has(edge.data.target) ? 0.92 : 0.1),
+        width: Math.max(1.6, Math.min(6, edge.data.total_support)) + (isFocused ? 1.2 : 0),
+        opacity: edgeOpacity,
       },
       symbol: ['arrow', 'arrow'],
       symbolSize: 8,
-    }));
+      };
+    });
     const applyChartState = () => {
-      const focusedNodeIds = buildFocusedNodeIds();
+      const focusState = buildFocusState();
       chart.setOption({
         series: [
           {
-            data: buildNodes(labelsVisible, focusedNodeIds),
-            links: buildLinks(focusedNodeIds),
+            data: buildNodes(labelsVisible, focusState),
+            links: buildLinks(focusState),
           },
         ],
       });
@@ -382,15 +428,15 @@
             min: 0.35,
             max: 2.5,
           },
-          data: buildNodes(labelsVisible, buildFocusedNodeIds()),
-          links: buildLinks(buildFocusedNodeIds()),
+          data: buildNodes(labelsVisible, buildFocusState()),
+          links: buildLinks(buildFocusState()),
           force: {
             repulsion: echartsRepulsion,
             edgeLength: [Math.round(echartsEdgeLength * 0.7), Math.round(echartsEdgeLength * 1.3)],
             gravity: echartsGravity,
           },
           emphasis: {
-            focus: 'adjacency',
+            scale: true,
             label: {
               show: true,
               color: '#0f1720',
@@ -427,10 +473,18 @@
     chart.on('graphroam', updateLabelVisibility);
     chart.on('click', (params) => {
       if (params.dataType !== 'node' || !params.data || !params.data.id) {
+        if (!params.dataType && selectedNodeIds.size > 0) {
+          selectedNodeIds.clear();
+          applyChartState();
+        }
         return;
       }
       hideContextMenu();
-      focusedNodeId = focusedNodeId === params.data.id ? null : params.data.id;
+      if (selectedNodeIds.has(params.data.id)) {
+        selectedNodeIds.delete(params.data.id);
+      } else {
+        selectedNodeIds.add(params.data.id);
+      }
       applyChartState();
     });
     chart.on('mousemove', (params) => {
@@ -467,7 +521,7 @@
     if (resetButton) {
       resetButton.addEventListener('click', () => {
         hideContextMenu();
-        focusedNodeId = null;
+        selectedNodeIds.clear();
         chart.dispatchAction({ type: 'downplay', seriesIndex: 0 });
         applyChartState();
       });
@@ -490,6 +544,7 @@
     const contextMenuOpenLink = document.getElementById('graph-context-menu-open');
     const taxonDetailUrlTemplate = "{% url 'database:taxon-detail' 0 %}";
     const elements = [...graphData.nodes, ...graphData.edges];
+    const selectedNodeIds = new Set();
     const cytoscapeRepulsionScale = {{ layout_settings.cytoscape_repulsion_scale }};
     const cytoscapeEdgeLengthScale = {{ layout_settings.cytoscape_edge_length_scale }};
     const cytoscapeGravity = {{ layout_settings.cytoscape_gravity }};
@@ -783,20 +838,59 @@
       contextMenu.style.top = `${clampedTop}px`;
     };
 
-    const resetFocus = () => {
+    const applyFocusState = () => {
       cy.elements().removeClass('faded focused context');
+      if (selectedNodeIds.size === 0) {
+        return;
+      }
+
+      const contextNodeIds = new Set();
+      const activeEdgeIds = new Set();
+      cy.edges().forEach((edge) => {
+        const sourceId = edge.source().id();
+        const targetId = edge.target().id();
+        const sourceIsSelected = selectedNodeIds.has(sourceId);
+        const targetIsSelected = selectedNodeIds.has(targetId);
+        if (!sourceIsSelected && !targetIsSelected) {
+          return;
+        }
+        activeEdgeIds.add(edge.id());
+        if (!sourceIsSelected) {
+          contextNodeIds.add(sourceId);
+        }
+        if (!targetIsSelected) {
+          contextNodeIds.add(targetId);
+        }
+      });
+
+      cy.elements().addClass('faded');
+      selectedNodeIds.forEach((nodeId) => {
+        cy.getElementById(nodeId).removeClass('faded').addClass('focused');
+      });
+      contextNodeIds.forEach((nodeId) => {
+        cy.getElementById(nodeId).removeClass('faded').addClass('context');
+      });
+      activeEdgeIds.forEach((edgeId) => {
+        cy.getElementById(edgeId).removeClass('faded').addClass('focused');
+      });
+    };
+
+    const resetFocus = () => {
+      selectedNodeIds.clear();
+      applyFocusState();
     };
 
     cy.on('tap', 'node', (event) => {
       const node = event.target;
-      const neighborhood = node.closedNeighborhood();
-      const contextNodes = neighborhood.nodes();
+      const nodeId = node.id();
 
       hideContextMenu();
-      cy.elements().addClass('faded');
-      node.removeClass('faded').addClass('focused');
-      contextNodes.not(node).removeClass('faded').addClass('context');
-      neighborhood.edges().removeClass('faded').addClass('focused');
+      if (selectedNodeIds.has(nodeId)) {
+        selectedNodeIds.delete(nodeId);
+      } else {
+        selectedNodeIds.add(nodeId);
+      }
+      applyFocusState();
     });
 
     cy.on('tap', (event) => {

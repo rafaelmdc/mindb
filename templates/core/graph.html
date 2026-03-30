@@ -230,8 +230,15 @@
     const echartsGravity = {{ layout_settings.echarts_gravity }};
     const echartsLabelZoomThreshold = 0.72;
     let labelsVisible = true;
-    let focusedNodeId = null;
+    const selectedNodeIds = new Set();
     let hoveredNodeData = null;
+    const focusedNodeOpacity = 1;
+    const contextNodeOpacity = 0.94;
+    const fadedNodeOpacity = 0.16;
+    const defaultEdgeOpacity = 0.6;
+    const focusedEdgeOpacity = 0.94;
+    const fadedEdgeOpacity = 0.08;
+    const buildEdgeKey = (sourceId, targetId) => `${sourceId}::${targetId}`;
     const buildContextMenuActions = (nodeData) => {
       if (!nodeData) {
         return [];
@@ -266,26 +273,50 @@
       }
       return [];
     };
-    const buildFocusedNodeIds = () => {
-      if (!focusedNodeId) {
-        return new Set();
+    const buildFocusState = () => {
+      if (selectedNodeIds.size === 0) {
+        return {
+          selectedNodeIds: new Set(),
+          contextNodeIds: new Set(),
+          activeEdgeKeys: new Set(),
+        };
       }
 
-      const focusedIds = new Set([focusedNodeId]);
+      const contextNodeIds = new Set();
+      const activeEdgeKeys = new Set();
       graphData.edges.forEach((edge) => {
-        if (edge.data.source === focusedNodeId) {
-          focusedIds.add(edge.data.target);
+        const sourceIsSelected = selectedNodeIds.has(edge.data.source);
+        const targetIsSelected = selectedNodeIds.has(edge.data.target);
+        if (!sourceIsSelected && !targetIsSelected) {
+          return;
         }
-        if (edge.data.target === focusedNodeId) {
-          focusedIds.add(edge.data.source);
+        activeEdgeKeys.add(buildEdgeKey(edge.data.source, edge.data.target));
+        if (!sourceIsSelected) {
+          contextNodeIds.add(edge.data.source);
+        }
+        if (!targetIsSelected) {
+          contextNodeIds.add(edge.data.target);
         }
       });
-      return focusedIds;
+      return {
+        selectedNodeIds: new Set(selectedNodeIds),
+        contextNodeIds,
+        activeEdgeKeys,
+      };
     };
-    const buildNodes = (showTaxonLabels, focusedNodeIds) => graphData.nodes.map((node) => {
+    const buildNodes = (showTaxonLabels, focusState) => graphData.nodes.map((node) => {
       const data = node.data;
       const isDisease = data.node_type === 'disease';
-      const isFocused = focusedNodeIds.has(data.id);
+      const isFocused = focusState.selectedNodeIds.has(data.id);
+      const isContext = !isFocused && focusState.contextNodeIds.has(data.id);
+      const isFaded = focusState.selectedNodeIds.size > 0 && !isFocused && !isContext;
+      const nodeOpacity = isFocused
+        ? focusedNodeOpacity
+        : isContext
+          ? contextNodeOpacity
+          : isFaded
+            ? fadedNodeOpacity
+            : 1;
       return {
         id: data.id,
         name: data.label,
@@ -295,13 +326,15 @@
         x: node.position.x,
         y: node.position.y,
         draggable: true,
-        symbolSize: isDisease ? Math.max(44, Math.min(74, 40 + (data.degree * 6))) : Math.max(18, Math.min(34, 16 + (data.degree * 2))),
+        symbolSize: isDisease
+          ? Math.max(44, Math.min(74, 40 + (data.degree * 6))) + (isFocused ? 4 : 0)
+          : Math.max(18, Math.min(34, 16 + (data.degree * 2))) + (isFocused ? 3 : 0),
         label: {
-          show: isDisease || showTaxonLabels || isFocused,
+          show: isDisease || showTaxonLabels || isFocused || isContext,
           color: isDisease ? '#f8fafc' : '#0f1720',
           backgroundColor: 'rgba(255,255,255,0)',
           fontSize: isDisease ? 12 : 11,
-          fontWeight: isDisease ? 800 : 600,
+          fontWeight: isFocused ? 800 : (isDisease ? 800 : (isContext ? 700 : 600)),
           width: isDisease ? 130 : 120,
           overflow: 'break',
           position: isDisease ? 'inside' : 'right',
@@ -310,23 +343,38 @@
           textBorderWidth: isDisease ? 1.2 : 3,
           textShadowColor: isDisease ? 'rgba(15,23,32,0)' : 'rgba(248,250,252,0.75)',
           textShadowBlur: isDisease ? 0 : 6,
+          opacity: isFaded ? 0.2 : 1,
         },
         itemStyle: isFocused ? {
-          ...{
-            color: isDisease ? '#334155' : (data.column === 'enriched' ? '#dc3545' : '#0d6efd'),
-            borderColor: '#f8fafc',
-            borderWidth: 2,
-          },
-          shadowBlur: 18,
+          color: isDisease ? '#334155' : (data.column === 'enriched' ? '#dc3545' : '#0d6efd'),
+          borderColor: '#111827',
+          borderWidth: 4,
+          opacity: nodeOpacity,
+          shadowBlur: 20,
           shadowColor: 'rgba(15,23,32,0.28)',
+        } : isContext ? {
+          color: isDisease ? '#334155' : (data.column === 'enriched' ? '#dc3545' : '#0d6efd'),
+          borderColor: '#475569',
+          borderWidth: 3,
+          opacity: nodeOpacity,
+          shadowBlur: 14,
+          shadowColor: 'rgba(15,23,32,0.14)',
         } : {
           color: isDisease ? '#334155' : (data.column === 'enriched' ? '#dc3545' : '#0d6efd'),
           borderColor: '#f8fafc',
           borderWidth: 2,
+          opacity: nodeOpacity,
         },
       };
     });
-    const buildLinks = (focusedNodeIds) => graphData.edges.map((edge) => ({
+    const buildLinks = (focusState) => graphData.edges.map((edge) => {
+      const isFocused = focusState.activeEdgeKeys.has(buildEdgeKey(edge.data.source, edge.data.target));
+      const edgeOpacity = focusState.selectedNodeIds.size === 0
+        ? defaultEdgeOpacity
+        : isFocused
+          ? focusedEdgeOpacity
+          : fadedEdgeOpacity;
+      return {
       item_type: 'edge',
       source: edge.data.source,
       target: edge.data.target,
@@ -337,22 +385,20 @@
       value: edge.data.finding_count,
       lineStyle: {
         color: edge.data.column === 'enriched' ? '#dc3545' : '#0d6efd',
-        width: Math.max(1.5, Math.min(6, edge.data.finding_count)),
-        opacity:
-          focusedNodeIds.size === 0
-            ? 0.6
-            : (focusedNodeIds.has(edge.data.source) && focusedNodeIds.has(edge.data.target) ? 0.9 : 0.12),
+        width: Math.max(1.5, Math.min(6, edge.data.finding_count)) + (isFocused ? 1.2 : 0),
+        opacity: edgeOpacity,
       },
       symbol: ['none', 'arrow'],
       symbolSize: 8,
-    }));
+      };
+    });
     const applyChartState = () => {
-      const focusedNodeIds = buildFocusedNodeIds();
+      const focusState = buildFocusState();
       chart.setOption({
         series: [
           {
-            data: buildNodes(labelsVisible, focusedNodeIds),
-            links: buildLinks(focusedNodeIds),
+            data: buildNodes(labelsVisible, focusState),
+            links: buildLinks(focusState),
           },
         ],
       });
@@ -395,15 +441,15 @@
             min: 0.35,
             max: 2.4,
           },
-          data: buildNodes(labelsVisible, buildFocusedNodeIds()),
-          links: buildLinks(buildFocusedNodeIds()),
+          data: buildNodes(labelsVisible, buildFocusState()),
+          links: buildLinks(buildFocusState()),
           force: {
             repulsion: echartsRepulsion,
             edgeLength: [Math.round(echartsEdgeLength * 0.7), Math.round(echartsEdgeLength * 1.25)],
             gravity: echartsGravity,
           },
           emphasis: {
-            focus: 'adjacency',
+            scale: true,
             lineStyle: {
               width: 4,
               opacity: 0.95,
@@ -430,10 +476,18 @@
     chart.on('graphroam', updateLabelVisibility);
     chart.on('click', (params) => {
       if (params.dataType !== 'node' || !params.data || !params.data.id) {
+        if (!params.dataType && selectedNodeIds.size > 0) {
+          selectedNodeIds.clear();
+          applyChartState();
+        }
         return;
       }
       hideContextMenu();
-      focusedNodeId = focusedNodeId === params.data.id ? null : params.data.id;
+      if (selectedNodeIds.has(params.data.id)) {
+        selectedNodeIds.delete(params.data.id);
+      } else {
+        selectedNodeIds.add(params.data.id);
+      }
       applyChartState();
     });
     chart.on('mousemove', (params) => {
@@ -470,7 +524,7 @@
     if (resetButton) {
       resetButton.addEventListener('click', () => {
         hideContextMenu();
-        focusedNodeId = null;
+        selectedNodeIds.clear();
         chart.dispatchAction({ type: 'downplay', seriesIndex: 0 });
         applyChartState();
       });
@@ -497,6 +551,7 @@
     const qualitativeFindingListUrl = "{% url 'database:qualitativefinding-list' %}";
     const elements = [...graphData.nodes, ...graphData.edges];
     const initialPositions = new Map(graphData.nodes.map((node) => [node.data.id, node.position]));
+    const selectedNodeIds = new Set();
     const cytoscapeRepulsionScale = {{ layout_settings.cytoscape_repulsion_scale }};
     const cytoscapeEdgeLengthScale = {{ layout_settings.cytoscape_edge_length_scale }};
     const cytoscapeGravity = {{ layout_settings.cytoscape_gravity }};
@@ -724,20 +779,59 @@
       contextMenu.style.top = `${clampedTop}px`;
     };
 
-    const resetFocus = () => {
+    const applyFocusState = () => {
       cy.elements().removeClass('faded focused context');
+      if (selectedNodeIds.size === 0) {
+        return;
+      }
+
+      const contextNodeIds = new Set();
+      const activeEdgeIds = new Set();
+      cy.edges().forEach((edge) => {
+        const sourceId = edge.source().id();
+        const targetId = edge.target().id();
+        const sourceIsSelected = selectedNodeIds.has(sourceId);
+        const targetIsSelected = selectedNodeIds.has(targetId);
+        if (!sourceIsSelected && !targetIsSelected) {
+          return;
+        }
+        activeEdgeIds.add(edge.id());
+        if (!sourceIsSelected) {
+          contextNodeIds.add(sourceId);
+        }
+        if (!targetIsSelected) {
+          contextNodeIds.add(targetId);
+        }
+      });
+
+      cy.elements().addClass('faded');
+      selectedNodeIds.forEach((nodeId) => {
+        cy.getElementById(nodeId).removeClass('faded').addClass('focused');
+      });
+      contextNodeIds.forEach((nodeId) => {
+        cy.getElementById(nodeId).removeClass('faded').addClass('context');
+      });
+      activeEdgeIds.forEach((edgeId) => {
+        cy.getElementById(edgeId).removeClass('faded').addClass('focused');
+      });
+    };
+
+    const resetFocus = () => {
+      selectedNodeIds.clear();
+      applyFocusState();
     };
 
     cy.on('tap', 'node', (event) => {
       const node = event.target;
-      const neighborhood = node.closedNeighborhood();
-      const contextNodes = neighborhood.nodes();
+      const nodeId = node.id();
 
       hideContextMenu();
-      cy.elements().addClass('faded');
-      node.removeClass('faded').addClass('focused');
-      contextNodes.not(node).removeClass('faded').addClass('context');
-      neighborhood.edges().removeClass('faded').addClass('focused');
+      if (selectedNodeIds.has(nodeId)) {
+        selectedNodeIds.delete(nodeId);
+      } else {
+        selectedNodeIds.add(nodeId);
+      }
+      applyFocusState();
     });
 
     cy.on('tap', (event) => {
