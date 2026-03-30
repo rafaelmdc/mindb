@@ -872,15 +872,7 @@
           selector: 'node[column = "enriched"]',
           style: {
             'background-color': '#dc3545',
-            'label': 'data(label)',
-            'color': '#0f1720',
-            'text-wrap': 'wrap',
-            'text-max-width': 128,
-            'font-size': 11,
-            'font-weight': 600,
-            'min-zoomed-font-size': 9,
-            'text-outline-color': 'rgba(248,250,252,0.92)',
-            'text-outline-width': 3,
+            'label': '',
             'border-width': 2,
             'border-color': '#f8fafc',
             'width': 'mapData(degree, 0, 10, 22, 34)',
@@ -891,6 +883,16 @@
           selector: 'node[column = "depleted"]',
           style: {
             'background-color': '#0d6efd',
+            'label': '',
+            'border-width': 2,
+            'border-color': '#f8fafc',
+            'width': 'mapData(degree, 0, 10, 22, 34)',
+            'height': 'mapData(degree, 0, 10, 22, 34)',
+          }
+        },
+        {
+          selector: 'node[node_type = "taxon"].zoom-labeled',
+          style: {
             'label': 'data(label)',
             'color': '#0f1720',
             'text-wrap': 'wrap',
@@ -900,10 +902,6 @@
             'min-zoomed-font-size': 9,
             'text-outline-color': 'rgba(248,250,252,0.92)',
             'text-outline-width': 3,
-            'border-width': 2,
-            'border-color': '#f8fafc',
-            'width': 'mapData(degree, 0, 10, 22, 34)',
-            'height': 'mapData(degree, 0, 10, 22, 34)',
           }
         },
         {
@@ -998,6 +996,13 @@
     });
 
     cy.fit(cy.elements(), 96);
+
+    const cytoscapeLabelZoomThreshold = 0.78;
+    const updateZoomLabels = () => {
+      const shouldShowLabels = cy.zoom() >= cytoscapeLabelZoomThreshold;
+      cy.nodes('[node_type = "taxon"]').toggleClass('zoom-labeled', shouldShowLabels);
+    };
+    updateZoomLabels();
 
     const hideContextMenu = () => {
       if (!contextMenu) {
@@ -1180,6 +1185,7 @@
         resetFocus();
       });
     }
+    cy.on('zoom', updateZoomLabels);
     document.addEventListener('click', hideContextMenu);
     document.addEventListener('scroll', hideContextMenu, true);
     document.addEventListener('keydown', (event) => {

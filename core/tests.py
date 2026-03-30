@@ -268,6 +268,8 @@ class GraphViewTests(TestCase):
         self.assertContains(response, 'Download PNG')
         self.assertContains(response, 'Download SVG')
         self.assertContains(response, '@tone-row/cytoscape-svg@1.0.2/cytoscape-svg.js')
+        self.assertContains(response, 'node[node_type = "taxon"].zoom-labeled')
+        self.assertContains(response, "cy.on('zoom', updateZoomLabels);")
         self.assertContains(response, 'id="supporting-evidence"', html=False)
         self.assertEqual(len(response.context['edge_preview']), 3)
         self.assertEqual(response.context['edge_page_obj'].paginator.count, 3)

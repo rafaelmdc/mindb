@@ -40,7 +40,7 @@
         Opposite {{ edge_evidence.opposite_direction_count }}
       </div>
       <div
-        class="progress-bar"
+        class="progress-bar bg-success"
         style="width: {% widthratio edge_evidence.same_direction_count edge_evidence.total_support 100 %}%"
       >
         Same {{ edge_evidence.same_direction_count }}
@@ -48,7 +48,7 @@
     </div>
     <div class="d-flex flex-wrap justify-content-center gap-2">
       <span class="badge text-bg-danger">Opposite {{ edge_evidence.opposite_direction_count }}</span>
-      <span class="badge text-bg-primary">Same {{ edge_evidence.same_direction_count }}</span>
+      <span class="badge text-bg-success">Same {{ edge_evidence.same_direction_count }}</span>
       <span class="badge text-bg-secondary">Total {{ edge_evidence.total_support }}</span>
     </div>
   </div>
@@ -191,7 +191,7 @@
               </td>
               <td>
                 <span class="badge text-bg-danger">{{ comparison.opposite_direction|yesno:"1,0" }} opposite</span>
-                <span class="badge text-bg-primary">{{ comparison.same_direction|yesno:"1,0" }} same</span>
+                <span class="badge text-bg-success">{{ comparison.same_direction|yesno:"1,0" }} same</span>
               </td>
               <td>{{ comparison.leaf_taxon_ids|length }}</td>
             </tr>
