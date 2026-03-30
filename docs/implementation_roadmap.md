@@ -227,6 +227,13 @@ Validation:
 
 ### Phase 4: Replace large graph payload tables with paged supporting views
 
+Status:
+
+- implemented with paginated supporting-evidence tables on both graph pages
+- disease graph preview rows link into paginated comparison and qualitative-finding browser views
+- co-abundance preview rows link into the paginated edge evidence page
+- evidence-table page changes happen client-side from the loaded graph JSON, so the graph canvas is not rebuilt on normal pagination clicks
+
 Goal:
 
 - stop using large inline tables as the primary way to inspect graph evidence
@@ -247,13 +254,13 @@ Recommended disease-graph behavior:
 - keep summary cards
 - keep compact graph explanation
 - route users to paginated `ComparisonListView` and `QualitativeFindingListView` via current context actions
+- paginate the graph-page evidence table in place when JavaScript is available, with a normal server-rendered fallback for direct loads
 
 Recommended co-abundance behavior:
 
 - add paged supporting result views instead of a full inline all-edges table
-- for V1, the smallest correct change is:
-  - keep a small top-N summary table
-  - add “Open matching taxa”, “Open supporting comparisons”, or “Open supporting findings” actions
+- paginate the graph-page evidence table in place when JavaScript is available
+- keep dedicated edge evidence pages as the deeper paginated inspection path
 
 Possible second-step option:
 

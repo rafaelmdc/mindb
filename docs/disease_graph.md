@@ -122,6 +122,10 @@ The disease graph includes context-menu shortcuts into the browser:
 
 These shortcuts are the intended path from a summary edge back to row-level evidence.
 
+The main graph page now keeps a paginated supporting-evidence table instead of a full inline payload dump. Rows are sorted by stronger edges first and link directly to paginated supporting comparisons and qualitative findings.
+
+When JavaScript is available, evidence-table pagination happens in place from the already-loaded graph JSON, so browsing evidence pages does not rerender the graph canvas. Direct full-page loads still have a server-rendered fallback.
+
 The taxon browser also includes an `Open in disease graph` action. That launch uses:
 
 - `branch=<taxon_id>`

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load browser_tags %}
 
 {% block title %}Disease Network{% endblock %}
 {% block body_class %}graph-page{% endblock %}
@@ -156,38 +157,80 @@
     </div>
   </div>
 
-  <div class="card shadow-sm data-shell">
+  <div class="card shadow-sm data-shell" id="supporting-evidence" data-edge-page-size="{{ edge_page_obj.paginator.per_page }}" data-edge-current-page="{{ edge_page_obj.number }}">
     <div class="card-body">
-      <h2 class="h5">Current graph payload</h2>
-      <p class="text-secondary">
-        Diseases stay in the center. Enriched taxa connect from the left, depleted taxa from the right, and edges aggregate leaf-level findings into the selected rank.
-      </p>
+      <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+        <div>
+          <h2 class="h5 mb-1">Supporting Evidence</h2>
+          <p class="text-secondary mb-0">
+            Use the paginated browser views for row-level inspection. The table below is sorted by the highest-signal edges in the current graph and paginated so you can browse the full set.
+          </p>
+        </div>
+        <a class="btn btn-outline-secondary btn-sm align-self-start align-self-lg-auto" href="{% url 'database:qualitativefinding-list' %}">
+          Open qualitative browser
+        </a>
+      </div>
+      {% if edge_preview %}
+        <p class="text-secondary small mb-3" id="supporting-evidence-summary">
+          Showing {{ edge_page_obj.start_index }}-{{ edge_page_obj.end_index }} of {{ edge_page_obj.paginator.count }} graph edge{{ edge_page_obj.paginator.count|pluralize }}.
+        </p>
+      {% endif %}
       <div class="table-responsive">
-        <table class="table table-sm mb-0">
+        <table class="table table-sm align-middle mb-0">
           <thead>
             <tr>
-              <th>Enriched {{ current_group_rank|title }}</th>
+              <th>Taxon</th>
               <th>Disease</th>
-              <th>Depleted {{ current_group_rank|title }}</th>
+              <th>Role</th>
               <th>Findings</th>
-              <th>Leaf taxa</th>
-              <th>Sources</th>
+              <th>Studies</th>
+              <th class="text-end">Actions</th>
             </tr>
           </thead>
-          <tbody>
-            {% for edge in graph_data.edges %}
+          <tbody id="supporting-evidence-table-body">
+            {% for edge in edge_preview %}
               <tr>
-                <td>{% if edge.data.column == "enriched" %}{{ edge.data.source_label }}{% endif %}</td>
+                <td>{{ edge.data.source_label }}</td>
                 <td>{{ edge.data.target_label }}</td>
-                <td>{% if edge.data.column == "depleted" %}{{ edge.data.source_label }}{% endif %}</td>
+                <td>{{ edge.data.column|title }}</td>
                 <td>{{ edge.data.finding_count }}</td>
-                <td>{{ edge.data.leaf_taxon_count }}</td>
-                <td>{{ edge.data.source_count }}</td>
+                <td>{{ edge.data.study_count }}</td>
+                <td class="text-end">
+                  <div class="d-inline-flex gap-2">
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ edge.data.comparison_url }}">Comparisons</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ edge.data.finding_url }}">Findings</a>
+                  </div>
+                </td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+      {% if edge_page_obj.has_other_pages %}
+        <nav aria-label="Supporting evidence pagination" class="mt-4" id="supporting-evidence-pagination">
+          <ul class="pagination pagination-shell mb-0">
+            <li class="page-item {% if not edge_page_obj.has_previous %}disabled{% endif %}">
+              {% if edge_page_obj.has_previous %}
+                <a class="page-link" href="{% querystring edge_page=edge_page_obj.previous_page_number %}">Previous</a>
+              {% else %}
+                <span class="page-link">Previous</span>
+              {% endif %}
+            </li>
+            {% for page_number in edge_page_obj.paginator.page_range %}
+              <li class="page-item {% if page_number == edge_page_obj.number %}active{% endif %}">
+                <a class="page-link" href="{% querystring edge_page=page_number %}">{{ page_number }}</a>
+              </li>
+            {% endfor %}
+            <li class="page-item {% if not edge_page_obj.has_next %}disabled{% endif %}">
+              {% if edge_page_obj.has_next %}
+                <a class="page-link" href="{% querystring edge_page=edge_page_obj.next_page_number %}">Next</a>
+              {% else %}
+                <span class="page-link">Next</span>
+              {% endif %}
+            </li>
+          </ul>
+        </nav>
+      {% endif %}
     </div>
   </div>
 {% else %}
@@ -207,6 +250,131 @@
 </div>
 
 {{ graph_data|json_script:"graph-data" }}
+<script>
+  (function () {
+    const evidenceCard = document.getElementById('supporting-evidence');
+    const paginationNav = document.getElementById('supporting-evidence-pagination');
+    const summaryElement = document.getElementById('supporting-evidence-summary');
+    const tableBody = document.getElementById('supporting-evidence-table-body');
+    if (!evidenceCard || !paginationNav || !summaryElement || !tableBody) {
+      return;
+    }
+
+    const pageSize = Number(evidenceCard.dataset.edgePageSize || '8');
+    const initialPage = Number(evidenceCard.dataset.edgeCurrentPage || '1');
+    const graphData = JSON.parse(document.getElementById('graph-data').textContent);
+    const edges = graphData.edges.slice().sort((left, right) => (
+      (right.data.finding_count - left.data.finding_count)
+      || left.data.target_label.localeCompare(right.data.target_label)
+      || left.data.source_label.localeCompare(right.data.source_label)
+    ));
+    const totalPages = Math.max(Math.ceil(edges.length / pageSize), 1);
+
+    function clampPage(pageNumber) {
+      if (!Number.isFinite(pageNumber)) {
+        return 1;
+      }
+      return Math.min(Math.max(pageNumber, 1), totalPages);
+    }
+
+    function updateUrl(pageNumber, replaceState) {
+      const url = new URL(window.location.href);
+      if (pageNumber <= 1) {
+        url.searchParams.delete('edge_page');
+      } else {
+        url.searchParams.set('edge_page', String(pageNumber));
+      }
+      if (replaceState) {
+        window.history.replaceState({ edgePage: pageNumber }, '', url);
+      } else {
+        window.history.pushState({ edgePage: pageNumber }, '', url);
+      }
+    }
+
+    function buildPageHref(pageNumber) {
+      const url = new URL(window.location.href);
+      if (pageNumber <= 1) {
+        url.searchParams.delete('edge_page');
+      } else {
+        url.searchParams.set('edge_page', String(pageNumber));
+      }
+      return `${url.pathname}${url.search}`;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function renderPagination(pageNumber) {
+      const items = [];
+      const previousPage = pageNumber - 1;
+      const nextPage = pageNumber + 1;
+      items.push(`
+        <li class="page-item ${pageNumber <= 1 ? 'disabled' : ''}">
+          ${pageNumber <= 1 ? '<span class="page-link">Previous</span>' : `<a class="page-link" href="${buildPageHref(previousPage)}" data-edge-page="${previousPage}">Previous</a>`}
+        </li>
+      `);
+      for (let current = 1; current <= totalPages; current += 1) {
+        items.push(`
+          <li class="page-item ${current === pageNumber ? 'active' : ''}">
+            <a class="page-link" href="${buildPageHref(current)}" data-edge-page="${current}">${current}</a>
+          </li>
+        `);
+      }
+      items.push(`
+        <li class="page-item ${pageNumber >= totalPages ? 'disabled' : ''}">
+          ${pageNumber >= totalPages ? '<span class="page-link">Next</span>' : `<a class="page-link" href="${buildPageHref(nextPage)}" data-edge-page="${nextPage}">Next</a>`}
+        </li>
+      `);
+      paginationNav.innerHTML = `<ul class="pagination pagination-shell mb-0">${items.join('')}</ul>`;
+    }
+
+    function renderTable(pageNumber, replaceState) {
+      const currentPage = clampPage(pageNumber);
+      const startIndex = (currentPage - 1) * pageSize;
+      const pageEdges = edges.slice(startIndex, startIndex + pageSize);
+      tableBody.innerHTML = pageEdges.map((edge) => `
+        <tr>
+          <td>${escapeHtml(edge.data.source_label)}</td>
+          <td>${escapeHtml(edge.data.target_label)}</td>
+          <td>${escapeHtml(edge.data.column.charAt(0).toUpperCase() + edge.data.column.slice(1))}</td>
+          <td>${edge.data.finding_count}</td>
+          <td>${edge.data.study_count}</td>
+          <td class="text-end">
+            <div class="d-inline-flex gap-2">
+              <a class="btn btn-outline-secondary btn-sm" href="${escapeHtml(edge.data.comparison_url)}">Comparisons</a>
+              <a class="btn btn-outline-secondary btn-sm" href="${escapeHtml(edge.data.finding_url)}">Findings</a>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      summaryElement.textContent = `Showing ${startIndex + 1}-${startIndex + pageEdges.length} of ${edges.length} graph edge${edges.length === 1 ? '' : 's'}.`;
+      renderPagination(currentPage);
+      updateUrl(currentPage, replaceState);
+    }
+
+    paginationNav.addEventListener('click', (event) => {
+      const link = event.target.closest('[data-edge-page]');
+      if (!link) {
+        return;
+      }
+      event.preventDefault();
+      renderTable(Number(link.dataset.edgePage), false);
+    });
+
+    window.addEventListener('popstate', () => {
+      const currentUrl = new URL(window.location.href);
+      renderTable(Number(currentUrl.searchParams.get('edge_page') || '1'), true);
+    });
+
+    renderTable(initialPage, true);
+  })();
+</script>
 {% if current_engine == 'echarts' %}
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 {% else %}

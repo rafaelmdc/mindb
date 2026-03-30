@@ -122,6 +122,23 @@ class ModelDiagramDownloadView(LoginRequiredMixin, View):
 
 class GraphView(TemplateView):
     template_name = 'core/graph.html'
+    edge_paginate_by = 8
+
+    def _build_edge_support_urls(self, edge_data):
+        comparison_query = {
+            'disease_condition': edge_data['target_label'],
+            'taxon_branch': edge_data['source_taxon_pk'],
+            'finding_direction': edge_data['column'],
+        }
+        finding_query = {
+            'disease_condition': edge_data['target_label'],
+            'branch': edge_data['source_taxon_pk'],
+            'finding_direction': edge_data['column'],
+        }
+        return {
+            'comparison_url': f"{reverse('database:comparison-list')}?{urlencode(comparison_query)}",
+            'finding_url': f"{reverse('database:qualitativefinding-list')}?{urlencode(finding_query)}",
+        }
 
     def get_grouping_rank(self):
         grouping_rank = self.request.GET.get('group_rank', '').strip() or 'family'
@@ -170,7 +187,22 @@ class GraphView(TemplateView):
         layout_settings = build_disease_layout_settings(self.request.GET)
         graph_data = build_disease_graph(self.get_queryset(), grouping_rank=grouping_rank)
         branch_id = self.request.GET.get('branch', '').strip()
+        all_edges = sorted(
+            graph_data['edges'],
+            key=lambda edge: (
+                -edge['data']['finding_count'],
+                edge['data']['target_label'].lower(),
+                edge['data']['source_label'].lower(),
+            ),
+        )
+        for edge in all_edges:
+            edge['data'].update(self._build_edge_support_urls(edge['data']))
+        edge_page_obj = Paginator(all_edges, self.edge_paginate_by).get_page(
+            self.request.GET.get('edge_page', '1')
+        )
         context['graph_data'] = graph_data
+        context['edge_preview'] = list(edge_page_obj.object_list)
+        context['edge_page_obj'] = edge_page_obj
         context['studies'] = Study.objects.order_by('title')
         context['direction_choices'] = QualitativeFinding.Direction.choices
         context['grouping_rank_choices'] = GRAPH_GROUPING_CHOICES
@@ -269,6 +301,7 @@ class DirectionalTaxonGraphMixin:
 
 class DirectionalTaxonNetworkView(DirectionalTaxonGraphMixin, TemplateView):
     template_name = 'core/directional_taxon_network.html'
+    edge_paginate_by = 8
 
     def _build_edge_detail_url(self, edge_data):
         query = {
@@ -295,7 +328,21 @@ class DirectionalTaxonNetworkView(DirectionalTaxonGraphMixin, TemplateView):
         )
         for edge in graph_data['edges']:
             edge['data']['edge_detail_url'] = self._build_edge_detail_url(edge['data'])
+        all_edges = sorted(
+            graph_data['edges'],
+            key=lambda edge: (
+                -edge['data']['total_support'],
+                -edge['data']['comparison_count'],
+                edge['data']['source_label'].lower(),
+                edge['data']['target_label'].lower(),
+            ),
+        )
+        edge_page_obj = Paginator(all_edges, self.edge_paginate_by).get_page(
+            self.request.GET.get('edge_page', '1')
+        )
         context['graph_data'] = graph_data
+        context['edge_preview'] = list(edge_page_obj.object_list)
+        context['edge_page_obj'] = edge_page_obj
         context['studies'] = Study.objects.order_by('title')
         context['grouping_rank_choices'] = GRAPH_GROUPING_CHOICES
         context['engine_choices'] = GRAPH_ENGINE_CHOICES

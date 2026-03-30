@@ -256,6 +256,63 @@ class GraphViewTests(TestCase):
         self.assertContains(response, 'value="280.0"')
         self.assertContains(response, 'value="0.06"')
 
+    def test_graph_page_uses_compact_supporting_evidence_preview(self):
+        response = self.client.get(reverse('core:disease-network'), {'group_rank': 'leaf'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Supporting Evidence')
+        self.assertNotContains(response, 'Current graph payload')
+        self.assertContains(response, 'Comparisons')
+        self.assertContains(response, 'Findings')
+        self.assertContains(response, 'id="supporting-evidence"', html=False)
+        self.assertEqual(len(response.context['edge_preview']), 3)
+        self.assertEqual(response.context['edge_page_obj'].paginator.count, 3)
+        first_preview_edge = response.context['edge_preview'][0]['data']
+        self.assertIn(reverse('database:comparison-list'), first_preview_edge['comparison_url'])
+        self.assertIn(reverse('database:qualitativefinding-list'), first_preview_edge['finding_url'])
+
+    @patch('core.views.build_disease_graph')
+    def test_graph_page_supporting_evidence_preview_is_paginated(self, mock_build_disease_graph):
+        mock_build_disease_graph.return_value = {
+            'nodes': [],
+            'edges': [
+                {
+                    'data': {
+                        'id': f'edge-{index}',
+                        'source': f'taxon-{index}',
+                        'target': f'disease-{index}',
+                        'source_taxon_pk': index,
+                        'source_label': f'Taxon {index:02d}',
+                        'target_label': f'Disease {index:02d}',
+                        'column': 'enriched',
+                        'finding_count': 1,
+                        'study_count': 1,
+                    }
+                }
+                for index in range(1, 10)
+            ],
+            'summary': {
+                'edge_count': 9,
+                'disease_count': 0,
+                'taxon_count': 0,
+                'enriched_taxon_count': 0,
+                'depleted_taxon_count': 0,
+                'finding_count': 0,
+                'grouping_rank': 'leaf',
+                'skipped_rollup_count': 0,
+            },
+        }
+
+        response = self.client.get(reverse('core:disease-network'), {'edge_page': '2'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['edge_page_obj'].number, 2)
+        self.assertEqual(response.context['edge_page_obj'].paginator.count, 9)
+        self.assertEqual(len(response.context['edge_preview']), 1)
+        self.assertContains(response, 'edge_page=1')
+        self.assertNotContains(response, '#supporting-evidence')
+        self.assertContains(response, 'Showing 9-9 of 9 graph edges.')
+
 
 class DirectionalTaxonNetworkTests(TestCase):
     def setUp(self):
@@ -499,6 +556,70 @@ class DirectionalTaxonNetworkTests(TestCase):
         self.assertIn('source_taxon_pk', edge_data)
         self.assertIn('target_taxon_pk', edge_data)
         self.assertIn(reverse('core:co-abundance-edge-detail'), edge_data['edge_detail_url'])
+
+    def test_directional_taxon_network_page_uses_compact_supporting_evidence_preview(self):
+        response = self.client.get(reverse('core:co-abundance-network'), {'group_rank': 'leaf'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Supporting Evidence')
+        self.assertNotContains(response, 'Current graph payload')
+        self.assertContains(response, 'Open evidence')
+        self.assertContains(response, 'id="supporting-evidence"', html=False)
+        self.assertEqual(len(response.context['edge_preview']), 3)
+        self.assertEqual(response.context['edge_page_obj'].paginator.count, 3)
+        self.assertIn(
+            reverse('core:co-abundance-edge-detail'),
+            response.context['edge_preview'][0]['data']['edge_detail_url'],
+        )
+
+    @patch('core.views.build_directional_taxon_network')
+    def test_directional_taxon_network_page_supporting_evidence_preview_is_paginated(self, mock_builder):
+        mock_builder.return_value = {
+            'nodes': [],
+            'edges': [
+                {
+                    'data': {
+                        'id': f'edge-{index}',
+                        'source': f'taxon-{index}',
+                        'target': f'taxon-{index + 1}',
+                        'source_taxon_pk': index,
+                        'target_taxon_pk': index + 1,
+                        'source_label': f'Taxon {index:02d}',
+                        'target_label': f'Taxon {index + 1:02d}',
+                        'dominant_pattern': 'same_direction',
+                        'total_support': 1,
+                        'comparison_count': 1,
+                        'study_count': 1,
+                    }
+                }
+                for index in range(1, 10)
+            ],
+            'summary': {
+                'edge_count': 9,
+                'node_count': 0,
+                'taxon_count': 0,
+                'study_count': 0,
+                'grouping_rank': 'leaf',
+                'skipped_rollup_count': 0,
+                'minimum_support': 1,
+                'pattern_filter': 'all',
+                'same_direction_edge_count': 9,
+                'opposite_direction_edge_count': 0,
+                'mixed_edge_count': 0,
+                'total_support_count': 9,
+                'comparison_support_count': 9,
+            },
+        }
+
+        response = self.client.get(reverse('core:co-abundance-network'), {'edge_page': '2'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['edge_page_obj'].number, 2)
+        self.assertEqual(response.context['edge_page_obj'].paginator.count, 9)
+        self.assertEqual(len(response.context['edge_preview']), 1)
+        self.assertContains(response, 'edge_page=1')
+        self.assertNotContains(response, '#supporting-evidence')
+        self.assertContains(response, 'Showing 9-9 of 9 graph edges.')
 
     def test_co_abundance_edge_detail_page_renders_supporting_evidence(self):
         response = self.client.get(

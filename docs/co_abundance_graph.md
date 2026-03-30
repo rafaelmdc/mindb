@@ -152,6 +152,10 @@ The current co-abundance graph context menu exposes:
 
 The browser remains the intended place for detailed row-level inspection once a taxon pair of interest has been identified.
 
+The main graph page now uses a paginated supporting-evidence table instead of a full inline all-edges dump. Rows are sorted by stronger edges first and link to the dedicated paginated edge evidence page for that pair.
+
+When JavaScript is available, evidence-table pagination happens in place from the already-loaded graph JSON, so paging through edge rows does not rerender the graph canvas. Direct full-page loads still have a server-rendered fallback.
+
 ## Caveats
 
 - This graph is derived from shared comparison context, not from abundance correlation matrices.
