@@ -104,12 +104,25 @@ def _resolve_grouped_taxa(findings, grouping_rank):
     }
 
 
-def _directional_edge_pattern(edge):
+def normalize_directional_mixed_threshold(mixed_threshold):
+    try:
+        mixed_threshold = int(mixed_threshold)
+    except (TypeError, ValueError):
+        mixed_threshold = 20
+    return min(max(mixed_threshold, 0), 49)
+
+
+def _directional_edge_pattern(edge, *, mixed_threshold=20):
+    mixed_threshold = normalize_directional_mixed_threshold(mixed_threshold)
     total_support = edge['same_direction_count'] + edge['opposite_direction_count']
     if edge['same_direction_count'] and edge['opposite_direction_count']:
+        is_mixed = (
+            abs(edge['same_direction_count'] - edge['opposite_direction_count']) * 50
+            <= mixed_threshold * total_support
+        )
         dominant_pattern = (
             'mixed'
-            if edge['same_direction_count'] == edge['opposite_direction_count']
+            if is_mixed
             else (
                 'same_direction'
                 if edge['same_direction_count'] > edge['opposite_direction_count']
@@ -314,7 +327,7 @@ def _build_directional_edge_map(findings, grouping_rank, *, include_support_deta
             edge['source_labels'].update(comparison_pair['source_labels'])
             edge['leaf_taxon_ids'].update(comparison_pair['leaf_taxon_ids'])
 
-            support_pattern, support_count = _directional_edge_pattern(
+            support_pattern, rolled_up_support_count = _directional_edge_pattern(
                 {
                     'same_direction_count': int(comparison_pair['same_direction']),
                     'opposite_direction_count': int(comparison_pair['opposite_direction']),
@@ -347,10 +360,10 @@ def _build_directional_edge_map(findings, grouping_rank, *, include_support_deta
                         'same_direction_count': comparison_pair['same_direction_count'],
                         'opposite_direction_count': comparison_pair['opposite_direction_count'],
                         'pattern': support_pattern,
-                        'support_count': support_count,
-                        'rolled_up_support_count': (
-                            int(comparison_pair['same_direction']) + int(comparison_pair['opposite_direction'])
+                        'support_count': (
+                            comparison_pair['same_direction_count'] + comparison_pair['opposite_direction_count']
                         ),
+                        'rolled_up_support_count': rolled_up_support_count,
                         'leaf_taxon_ids': set(comparison_pair['leaf_taxon_ids']),
                         'items': support_items,
                         'findings': support_findings,
@@ -368,10 +381,12 @@ def build_directional_taxon_network(
     pattern_filter='all',
     taxon_query='',
     support_mode='leaf',
+    mixed_threshold=20,
 ):
     grouping_rank = grouping_rank if grouping_rank in GRAPH_GROUPING_RANKS else 'leaf'
     pattern_filter = pattern_filter if pattern_filter in {'all', 'same_direction', 'opposite_direction', 'mixed'} else 'all'
     support_mode = normalize_directional_support_mode(support_mode)
+    mixed_threshold = normalize_directional_mixed_threshold(mixed_threshold)
     try:
         minimum_support = max(int(minimum_support), 1)
     except (TypeError, ValueError):
@@ -392,7 +407,8 @@ def build_directional_taxon_network(
             {
                 'same_direction_count': same_direction_count,
                 'opposite_direction_count': opposite_direction_count,
-            }
+            },
+            mixed_threshold=mixed_threshold,
         )
         if total_support < minimum_support:
             continue
@@ -455,6 +471,7 @@ def build_directional_taxon_network(
                     'disease_labels': ', '.join(sorted(edge['disease_labels'])),
                     'leaf_taxon_count': len(edge['leaf_taxon_ids']),
                     'support_mode': support_mode,
+                    'mixed_threshold': mixed_threshold,
                 }
             }
         )
@@ -499,6 +516,7 @@ def build_directional_taxon_network(
             'minimum_support': minimum_support,
             'pattern_filter': pattern_filter,
             'support_mode': support_mode,
+            'mixed_threshold': mixed_threshold,
             'same_direction_edge_count': same_direction_edge_count,
             'opposite_direction_edge_count': opposite_direction_edge_count,
             'mixed_edge_count': mixed_edge_count,
@@ -518,10 +536,12 @@ def get_directional_edge_evidence(
     pattern_filter='all',
     taxon_query='',
     support_mode='leaf',
+    mixed_threshold=20,
 ):
     grouping_rank = grouping_rank if grouping_rank in GRAPH_GROUPING_RANKS else 'leaf'
     pattern_filter = pattern_filter if pattern_filter in {'all', 'same_direction', 'opposite_direction', 'mixed'} else 'all'
     support_mode = normalize_directional_support_mode(support_mode)
+    mixed_threshold = normalize_directional_mixed_threshold(mixed_threshold)
     try:
         minimum_support = max(int(minimum_support), 1)
     except (TypeError, ValueError):
@@ -550,7 +570,8 @@ def get_directional_edge_evidence(
         {
             'same_direction_count': same_direction_count,
             'opposite_direction_count': opposite_direction_count,
-        }
+        },
+        mixed_threshold=mixed_threshold,
     )
     if total_support < minimum_support:
         return None
@@ -624,6 +645,7 @@ def get_directional_edge_evidence(
         'minimum_support': minimum_support,
         'pattern_filter': pattern_filter,
         'support_mode': support_mode,
+        'mixed_threshold': mixed_threshold,
         'skipped_rollup_count': skipped_rollup_count,
         'comparisons': comparisons,
         'findings': findings_rows,

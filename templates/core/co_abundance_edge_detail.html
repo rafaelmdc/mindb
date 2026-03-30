@@ -29,7 +29,7 @@
           Mixed
         {% endif %}
       </strong>
-      because across the current filtered graph context, <strong>{{ edge_evidence.opposite_direction_count }}</strong> {% if current_support_mode == 'leaf' %}leaf-level pair support{{ edge_evidence.opposite_direction_count|pluralize }}{% else %}rolled-up support event{{ edge_evidence.opposite_direction_count|pluralize }}{% endif %} showed the two grouped taxa moving in opposite directions, while <strong>{{ edge_evidence.same_direction_count }}</strong> {% if current_support_mode == 'leaf' %}leaf-level pair support{{ edge_evidence.same_direction_count|pluralize }}{% else %}rolled-up support event{{ edge_evidence.same_direction_count|pluralize }}{% endif %} showed them moving in the same direction; those supports span <strong>{{ edge_evidence.comparison_count }}</strong> comparison{{ edge_evidence.comparison_count|pluralize }} after rollup to the selected taxon level.
+      because across the current filtered graph context, <strong>{{ edge_evidence.opposite_direction_count }}</strong> {% if current_support_mode == 'leaf' %}leaf-level pair support{{ edge_evidence.opposite_direction_count|pluralize }}{% else %}rolled-up support event{{ edge_evidence.opposite_direction_count|pluralize }}{% endif %} showed the two grouped taxa moving in opposite directions, while <strong>{{ edge_evidence.same_direction_count }}</strong> {% if current_support_mode == 'leaf' %}leaf-level pair support{{ edge_evidence.same_direction_count|pluralize }}{% else %}rolled-up support event{{ edge_evidence.same_direction_count|pluralize }}{% endif %} showed them moving in the same direction; those supports span <strong>{{ edge_evidence.comparison_count }}</strong> comparison{{ edge_evidence.comparison_count|pluralize }} after rollup to the selected taxon level, and a same-direction share between <strong>{{ current_mixed_threshold_lower }}-{{ current_mixed_threshold_upper }}</strong> percent is treated as mixed.
     </p>
     <div class="progress mb-3" role="progressbar" aria-label="Support breakdown" aria-valuemin="0" aria-valuemax="{{ edge_evidence.total_support }}" aria-valuenow="{{ edge_evidence.opposite_direction_count }}">
       <div
@@ -133,18 +133,13 @@
         <strong>Support mode:</strong> {{ current_support_mode_label }}
       </div>
       <div class="col-md-4">
+        <strong>Mixed threshold:</strong> {{ current_mixed_threshold }}%
+      </div>
+      <div class="col-md-4">
         <strong>Disease query:</strong> {{ current_disease|default:"None" }}
       </div>
       <div class="col-md-4">
         <strong>Taxon query:</strong> {{ current_taxon|default:"None" }}
-      </div>
-      <div class="col-12">
-        <strong>Branch:</strong>
-        {% if current_branch_taxon %}
-          {{ current_branch_taxon.scientific_name }}
-        {% else %}
-          All branches
-        {% endif %}
       </div>
     </div>
     {% if edge_evidence.disease_labels %}

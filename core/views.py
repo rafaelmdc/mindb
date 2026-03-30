@@ -17,6 +17,7 @@ from .graph_payloads import (
     build_disease_graph,
     build_directional_taxon_network,
     get_directional_edge_evidence,
+    normalize_directional_mixed_threshold,
     normalize_directional_support_mode,
 )
 from .graph_renderers import (
@@ -250,6 +251,10 @@ class DirectionalTaxonGraphMixin:
         support_mode = self.request.GET.get('support_mode', '').strip() or 'leaf'
         return normalize_directional_support_mode(support_mode)
 
+    def get_mixed_threshold(self):
+        mixed_threshold = self.request.GET.get('mixed_threshold', '').strip() or '20'
+        return normalize_directional_mixed_threshold(mixed_threshold)
+
     def get_study_id(self):
         return self.request.GET.get('study', '').strip()
 
@@ -259,15 +264,13 @@ class DirectionalTaxonGraphMixin:
     def get_taxon_query(self):
         return self.request.GET.get('taxon', '').strip()
 
-    def get_branch_id(self):
-        return self.request.GET.get('branch', '').strip()
-
     def get_graph_filter_query_params(self):
         params = {
             'group_rank': self.get_grouping_rank(),
             'pattern': self.get_pattern_filter(),
             'min_support': self.get_minimum_support(),
             'support_mode': self.get_support_mode(),
+            'mixed_threshold': self.get_mixed_threshold(),
         }
         if self.get_study_id():
             params['study'] = self.get_study_id()
@@ -275,8 +278,6 @@ class DirectionalTaxonGraphMixin:
             params['disease'] = self.get_disease_query()
         if self.get_taxon_query():
             params['taxon'] = self.get_taxon_query()
-        if self.get_branch_id():
-            params['branch'] = self.get_branch_id()
         return params
 
     def get_queryset(self):
@@ -290,7 +291,6 @@ class DirectionalTaxonGraphMixin:
 
         study_id = self.get_study_id()
         disease_query = self.get_disease_query()
-        branch_id = self.get_branch_id()
 
         if study_id:
             queryset = queryset.filter(comparison__study_id=study_id)
@@ -300,8 +300,6 @@ class DirectionalTaxonGraphMixin:
                 | Q(comparison__group_a__name__icontains=disease_query)
                 | Q(comparison__label__icontains=disease_query)
             )
-        if branch_id:
-            queryset = queryset.filter(taxon__closure_ancestors__ancestor_id=branch_id).distinct()
 
         return queryset.order_by('comparison__label', 'taxon__scientific_name')
 
@@ -321,10 +319,10 @@ class DirectionalTaxonNetworkView(DirectionalTaxonGraphMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         grouping_rank = self.get_grouping_rank()
-        branch_id = self.get_branch_id()
         minimum_support = self.get_minimum_support()
         pattern_filter = self.get_pattern_filter()
         support_mode = self.get_support_mode()
+        mixed_threshold = self.get_mixed_threshold()
         current_engine = normalize_graph_engine(self.request.GET.get('engine', '').strip() or 'cytoscape')
         layout_settings = build_directional_layout_settings(self.request.GET)
         graph_data = build_directional_taxon_network(
@@ -334,6 +332,7 @@ class DirectionalTaxonNetworkView(DirectionalTaxonGraphMixin, TemplateView):
             pattern_filter=pattern_filter,
             taxon_query=self.get_taxon_query(),
             support_mode=support_mode,
+            mixed_threshold=mixed_threshold,
         )
         for edge in graph_data['edges']:
             edge['data']['edge_detail_url'] = self._build_edge_detail_url(edge['data'])
@@ -363,7 +362,6 @@ class DirectionalTaxonNetworkView(DirectionalTaxonGraphMixin, TemplateView):
             for spec in DIRECTIONAL_LAYOUT_CONTROL_SPECS[current_engine]
         ]
         context['layout_settings'] = layout_settings
-        context['branch_taxa'] = Taxon.objects.order_by('scientific_name')[:200]
         context['pattern_choices'] = (
             ('all', 'All patterns'),
             ('same_direction', 'Same direction'),
@@ -375,16 +373,17 @@ class DirectionalTaxonNetworkView(DirectionalTaxonGraphMixin, TemplateView):
         context['current_study'] = self.get_study_id()
         context['current_disease'] = self.get_disease_query()
         context['current_taxon'] = self.get_taxon_query()
-        context['current_branch'] = branch_id
         context['current_group_rank'] = grouping_rank
         context['current_min_support'] = minimum_support
+        context['current_mixed_threshold'] = mixed_threshold
+        context['current_mixed_threshold_lower'] = 50 - mixed_threshold
+        context['current_mixed_threshold_upper'] = 50 + mixed_threshold
         context['current_pattern'] = pattern_filter
         context['current_support_mode'] = support_mode
         context['current_support_mode_label'] = dict(DIRECTIONAL_SUPPORT_MODE_CHOICES)[support_mode]
         context['current_support_metric_label'] = (
             'Leaf supports' if support_mode == 'leaf' else 'Rolled-up supports'
         )
-        context['current_branch_taxon'] = Taxon.objects.filter(pk=branch_id).first() if branch_id else None
         return context
 
 
@@ -411,6 +410,7 @@ class DirectionalTaxonEdgeDetailView(DirectionalTaxonGraphMixin, TemplateView):
         minimum_support = self.get_minimum_support()
         pattern_filter = self.get_pattern_filter()
         support_mode = self.get_support_mode()
+        mixed_threshold = self.get_mixed_threshold()
         edge_evidence = get_directional_edge_evidence(
             self.get_queryset(),
             source_taxon_id=source_taxon_id,
@@ -420,11 +420,11 @@ class DirectionalTaxonEdgeDetailView(DirectionalTaxonGraphMixin, TemplateView):
             pattern_filter=pattern_filter,
             taxon_query=self.get_taxon_query(),
             support_mode=support_mode,
+            mixed_threshold=mixed_threshold,
         )
         if edge_evidence is None:
             raise Http404('No co-abundance edge matched the current filters.')
 
-        branch_id = self.get_branch_id()
         context['edge_evidence'] = edge_evidence
         context['comparison_page_obj'] = self._paginate(
             edge_evidence['comparisons'],
@@ -439,9 +439,11 @@ class DirectionalTaxonEdgeDetailView(DirectionalTaxonGraphMixin, TemplateView):
         context['current_study'] = self.get_study_id()
         context['current_disease'] = self.get_disease_query()
         context['current_taxon'] = self.get_taxon_query()
-        context['current_branch'] = branch_id
         context['current_group_rank'] = grouping_rank
         context['current_min_support'] = minimum_support
+        context['current_mixed_threshold'] = mixed_threshold
+        context['current_mixed_threshold_lower'] = 50 - mixed_threshold
+        context['current_mixed_threshold_upper'] = 50 + mixed_threshold
         context['current_pattern'] = pattern_filter
         context['current_support_mode'] = support_mode
         context['current_support_mode_label'] = dict(DIRECTIONAL_SUPPORT_MODE_CHOICES)[support_mode]
@@ -449,6 +451,5 @@ class DirectionalTaxonEdgeDetailView(DirectionalTaxonGraphMixin, TemplateView):
             'Leaf supports' if support_mode == 'leaf' else 'Rolled-up supports'
         )
         context['current_study_obj'] = Study.objects.filter(pk=context['current_study']).first() if context['current_study'] else None
-        context['current_branch_taxon'] = Taxon.objects.filter(pk=branch_id).first() if branch_id else None
         context['graph_url'] = self._build_graph_url()
         return context

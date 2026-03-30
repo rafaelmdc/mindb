@@ -81,6 +81,7 @@ The co-abundance graph is a derived taxon-pair pattern view.
 - qualitative directions are normalized into positive vs negative buckets
 - pair support is tracked as `same_direction`, `opposite_direction`, or `mixed`
 - users can switch between `leaf` support mode and `rolled_up` support mode
+- users can also choose the percentage threshold that counts an edge as `mixed`
 - in `leaf` mode, edge strength is counted from underlying leaf-level pair support after rollup
 - in `rolled_up` mode, the graph uses the older grouped-pair-per-comparison support semantics
 - edges are aggregated across comparisons and optionally filtered by minimum support

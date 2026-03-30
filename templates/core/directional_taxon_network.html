@@ -59,17 +59,12 @@
       </select>
     </div>
     <div class="col-md-3">
-      <label class="form-label" for="id_branch">Branch</label>
-      <select class="form-select" id="id_branch" name="branch">
-        <option value="">All branches</option>
-        {% for taxon in branch_taxa %}
-          <option value="{{ taxon.pk }}" {% if current_branch == taxon.pk|stringformat:"s" %}selected{% endif %}>{{ taxon.scientific_name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-3">
       <label class="form-label" for="id_min_support">Minimum support</label>
       <input class="form-control" id="id_min_support" type="number" name="min_support" min="1" value="{{ current_min_support }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" for="id_mixed_threshold">Mixed threshold (%)</label>
+      <input class="form-control" id="id_mixed_threshold" type="number" name="mixed_threshold" min="0" max="49" step="1" value="{{ current_mixed_threshold }}">
     </div>
     <div class="col-md-3">
       <label class="form-label" for="id_disease">Disease query</label>
@@ -103,7 +98,7 @@
   </div>
   <div class="mt-3 d-flex gap-2">
     <button class="btn btn-primary" type="submit">Apply</button>
-    <a class="btn btn-outline-secondary" href="{% url 'core:co-abundance-network' %}?engine={{ current_engine }}&support_mode={{ current_support_mode }}">Reset</a>
+    <a class="btn btn-outline-secondary" href="{% url 'core:co-abundance-network' %}?engine={{ current_engine }}&support_mode={{ current_support_mode }}&mixed_threshold={{ current_mixed_threshold }}">Reset</a>
   </div>
 </form>
 
@@ -114,7 +109,7 @@
         <div class="flex-grow-1 pe-lg-3">
           <h2 class="h5 mb-1">Interactive Network</h2>
           <p class="text-secondary mb-0">
-            Grouped at the <strong>{{ current_group_rank }}</strong> level{% if current_branch_taxon %} within the <strong>{{ current_branch_taxon.scientific_name }}</strong> branch{% endif %}. Support mode is <strong>{{ current_support_mode_label }}</strong>. Opposite-direction edges render in red. Same-direction in green. Mixed are dotted.
+            Grouped at the <strong>{{ current_group_rank }}</strong> level. Support mode is <strong>{{ current_support_mode_label }}</strong>. Mixed means the same-direction share falls between <strong>{{ current_mixed_threshold_lower }}-{{ current_mixed_threshold_upper }}</strong> percent. Opposite-direction edges render in red. Same-direction in green. Mixed are dotted.
           </p>
         </div>
         <div class="d-flex flex-nowrap gap-2 align-self-start flex-shrink-0">

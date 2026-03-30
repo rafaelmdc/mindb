@@ -508,6 +508,63 @@ class DirectionalTaxonNetworkTests(TestCase):
         self.assertEqual(rolled_up_blautia_bacteroides['opposite_direction_count'], 2)
         self.assertEqual(rolled_up_blautia_bacteroides['support_mode'], 'rolled_up')
 
+    def test_directional_taxon_network_builder_applies_user_mixed_threshold(self):
+        extra_taxon = Taxon.objects.create(
+            ncbi_taxonomy_id=102,
+            scientific_name='Blautia obeum',
+            rank='species',
+            parent=self.taxon_a_genus,
+        )
+        self._attach_lineage(self.family, self.taxon_a_genus, extra_taxon)
+        QualitativeFinding.objects.create(
+            comparison=self.comparison_a,
+            taxon=extra_taxon,
+            direction=QualitativeFinding.Direction.ENRICHED,
+            source='Table 2',
+        )
+
+        default_graph_data = build_directional_taxon_network(
+            QualitativeFinding.objects.select_related(
+                'comparison',
+                'comparison__group_a',
+                'comparison__group_b',
+                'comparison__study',
+                'taxon',
+            ),
+            grouping_rank='genus',
+            support_mode='leaf',
+            mixed_threshold=0,
+        )
+        default_edge_payloads = {
+            frozenset({edge['data']['source_label'], edge['data']['target_label']}): edge['data']
+            for edge in default_graph_data['edges']
+        }
+        self.assertEqual(
+            default_edge_payloads[frozenset({'Blautia', 'Roseburia'})]['dominant_pattern'],
+            'same_direction',
+        )
+
+        relaxed_graph_data = build_directional_taxon_network(
+            QualitativeFinding.objects.select_related(
+                'comparison',
+                'comparison__group_a',
+                'comparison__group_b',
+                'comparison__study',
+                'taxon',
+            ),
+            grouping_rank='genus',
+            support_mode='leaf',
+            mixed_threshold=20,
+        )
+        relaxed_edge_payloads = {
+            frozenset({edge['data']['source_label'], edge['data']['target_label']}): edge['data']
+            for edge in relaxed_graph_data['edges']
+        }
+        blautia_roseburia = relaxed_edge_payloads[frozenset({'Blautia', 'Roseburia'})]
+        self.assertEqual(blautia_roseburia['same_direction_count'], 2)
+        self.assertEqual(blautia_roseburia['opposite_direction_count'], 1)
+        self.assertEqual(blautia_roseburia['dominant_pattern'], 'mixed')
+
     def test_directional_taxon_network_page_filters_by_pattern(self):
         response = self.client.get(
             reverse('core:co-abundance-network'),
@@ -597,7 +654,9 @@ class DirectionalTaxonNetworkTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['current_group_rank'], 'family')
+        self.assertEqual(response.context['current_mixed_threshold'], 20)
         self.assertContains(response, '<option value="species"', html=False)
+        self.assertContains(response, 'value="20"')
         self.assertContains(response, 'name="cytoscape_repulsion_scale"')
         self.assertContains(response, 'name="cytoscape_edge_length_scale"')
         self.assertContains(response, 'name="cytoscape_gravity"')
@@ -647,6 +706,8 @@ class DirectionalTaxonNetworkTests(TestCase):
         self.assertContains(response, 'Open evidence')
         self.assertContains(response, 'Leaf supports')
         self.assertContains(response, 'name="support_mode"')
+        self.assertContains(response, 'name="mixed_threshold"')
+        self.assertNotContains(response, 'name="branch"')
         self.assertContains(response, 'Download PNG')
         self.assertContains(response, 'Download SVG')
         self.assertContains(response, '@tone-row/cytoscape-svg@1.0.2/cytoscape-svg.js')
@@ -722,6 +783,7 @@ class DirectionalTaxonNetworkTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Co-abundance Edge Evidence')
         self.assertContains(response, 'Leaf supports')
+        self.assertContains(response, 'Mixed threshold')
         self.assertEqual(response.context['edge_evidence']['dominant_pattern'], 'opposite_direction')
         self.assertEqual(response.context['edge_evidence']['comparison_count'], 2)
         self.assertEqual(response.context['edge_evidence']['total_support'], 2)

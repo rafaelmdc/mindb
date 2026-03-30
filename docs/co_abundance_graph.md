@@ -59,10 +59,10 @@ The page supports:
 - `study`
 - `disease`
 - `taxon`
-- `branch`
 - `group_rank`
 - `pattern`
 - `support_mode`
+- `mixed_threshold`
 - `min_support`
 - `engine`
 
@@ -97,7 +97,14 @@ Support modes:
 - `rolled_up`
   Counts support the old way, where each grouped pair can contribute at most one same-direction and one opposite-direction support event per comparison after rollup.
 
-Co-abundance taxon filtering is applied after pair generation, not when loading the raw findings queryset. This preserves the full within-comparison taxon context needed to build edges, then keeps only edges involving the queried taxon or its lineage descendants or ancestors that remain visible at the selected grouping rank.
+Mixed-threshold behavior:
+
+- default: `mixed_threshold=20`
+- `mixed_threshold=0` means only exact 50/50 splits are classified as `mixed`
+- `mixed_threshold=10` means anything from 40/60 through 60/40 is classified as `mixed`
+- `mixed_threshold=20` means anything from 30/70 through 70/30 is classified as `mixed`
+
+Co-abundance taxon filtering is applied after pair generation, not when loading the raw findings queryset. This preserves the full within-comparison taxon context needed to build edges, then keeps only edges involving the queried taxon or its lineage descendants or ancestors that remain visible at the selected grouping rank. The co-abundance graph no longer exposes the disease-graph-style `branch` filter because pair generation is not meaningful when the raw comparison context is trimmed that way.
 
 ## Node semantics
 
