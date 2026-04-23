@@ -52,7 +52,6 @@ Prefer the following stack unless explicitly told otherwise:
 - Django admin for internal CRUD
 - `django-filter`
 - `django-tables2`
-- `networkx` for backend graph construction/analysis
 - Cytoscape.js for frontend graph rendering
 
 Do not introduce React, Next.js, a full SPA, or unnecessary frontend complexity unless explicitly requested.
@@ -214,12 +213,12 @@ The graph design is documented in `docs/graph.md`.
 Use the following architecture:
 
 - query findings with Django ORM
-- build graph structures in Python with `networkx`
+- build graph structures and payloads in Python
 - compute lightweight graph attributes only when useful
 - serialize nodes and edges as JSON
 - render interactively in the browser with Cytoscape.js
 
-Do not use raw matplotlib or raw NetworkX static plots as the main web graph solution.
+Do not use raw matplotlib or other static backend plots as the main web graph solution.
 
 Do not design the graph feature as a separate disconnected system; it should remain a view over database records.
 

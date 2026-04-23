@@ -57,7 +57,6 @@ Optional models:
 - Bootstrap 5
 - Django templates
 - Django admin
-- `networkx`
 - Cytoscape.js
 - ECharts
 

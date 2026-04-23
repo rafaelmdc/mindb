@@ -8,16 +8,14 @@
 ## What happened
 - Reviewed `docs/graph.md` and kept the first implementation aligned with the documented architecture:
 - filter `RelativeAssociation` records with Django ORM
-- build the graph in Python with `networkx`
+- build the graph payload in Python
 - serialize node and edge payloads for browser rendering
 - render interactively with Cytoscape.js
-- Added `networkx` to `requirements.txt`.
 - Implemented `core/graph.py` to build an aggregated organism graph from filtered associations.
 - Added a dedicated graph page at `/graph/` with filters for study, sign, association type, and organism query.
 - Added graph summary cards and a Cytoscape canvas for interactive rendering.
 - Updated navigation and the home page so the graph page is reachable from the main UI.
 - Added focused tests for the graph page summary and sign-based filtering.
-- Kept the `networkx` import inside the graph builder so local module loading still works even if the local Python environment is missing that dependency.
 
 ## Files touched
 - `requirements.txt`

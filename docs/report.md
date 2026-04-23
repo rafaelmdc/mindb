@@ -33,7 +33,7 @@ Implementation context:
 - The platform uses Django for the web framework.
 - PostgreSQL is used for the database.
 - Bootstrap is used for the frontend/UI.
-- NetworkX is used for graph/network logic and visualization-related modeling.
+- Graph/network payloads are built in Python and rendered interactively in the browser.
 - The website provides a browser/explorer for the stored database contents.
 - The system includes an admin/import-oriented workflow for bringing curated literature data into the database.
 - The implementation is still an early but functional prototype, focused on correctness of structure and extensibility rather than polished production deployment.
@@ -69,7 +69,7 @@ What the report must contain
 
 4. Implementation
 - Present the actual implementation choices.
-- Explain the use of Django, PostgreSQL, Bootstrap, and NetworkX.
+- Explain the use of Django, PostgreSQL, Bootstrap, and the current graph rendering approach.
 - Explain the role of the web interface.
 - Explain the import/admin workflow at a high level.
 - Keep this section practical and grounded in what was implemented.
