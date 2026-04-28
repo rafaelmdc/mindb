@@ -1,5 +1,5 @@
-# MINDb
-## Microbiome Interaction Network Database
+# ORDINA
+## Organism-Resolved Disease Interaction Network Atlas
 
 A Django-based database and browser for curated microbiome study evidence, centered on study groups, explicit comparisons, qualitative taxon findings, quantitative taxon values, and server-rendered graph exploration.
 

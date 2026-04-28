@@ -43,7 +43,7 @@ class HomeViewTests(TestCase):
         response = self.client.get(reverse('core:home'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Microbiome Interaction Network Database')
+        self.assertContains(response, 'Organism-Resolved Disease Interaction Network Atlas')
         self.assertContains(response, 'Groups')
         self.assertContains(response, 'Comparisons')
         self.assertContains(response, 'Qualitative')
