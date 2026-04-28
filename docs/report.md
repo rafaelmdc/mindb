@@ -1,4 +1,4 @@
-You are helping me write a concise LaTex project report (around 8–12 pages, target ~10 pages) about my microbiome database project called MINDb.
+You are helping me write a concise LaTex project report (around 8–12 pages, target ~10 pages) about my microbiome database project called ORDINA.
 
 Your job is to generate the full LaTex source for the report, with a clean academic/professional structure, but not overly formal or unnecessarily long. The document should read like a compact final project report that explains the motivation, design logic, implementation, and resulting platform.
 
@@ -15,7 +15,7 @@ Important constraints:
 - The tone should be that of a computer science / bioinformatics MSc project report.
 
 Context about the project
-The project is a microbiome literature curation and exploration platform called MINDb. Its purpose is to help centralize and organize microbiome-related findings from the scientific literature, especially disease–microorganism associations, in a way that is structured, reproducible, and explorable.
+The project is a microbiome literature curation and exploration platform called ORDINA. Its purpose is to help centralize and organize microbiome-related findings from the scientific literature, especially disease–microorganism associations, in a way that is structured, reproducible, and explorable.
 
 Core project logic and motivation:
 - Microbiome studies are scattered across many papers.
@@ -42,14 +42,14 @@ Taxon Bridge context:
 - Taxon Bridge is a supporting tool/library created to help resolve organism names and taxonomy-related issues.
 - Its role is to help bridge raw organism names found in the literature with a cleaner and more structured taxonomy-aware representation.
 - It was developed because taxonomic names in papers can be inconsistent, incomplete, outdated, or reported at different taxonomic ranks.
-- It supports the main MINDb platform by making organism handling more robust and by enabling future grouping/sorting/filtering by taxonomic lineage.
+- It supports the main ORDINA platform by making organism handling more robust and by enabling future grouping/sorting/filtering by taxonomic lineage.
 - In the report, Taxon Bridge should be presented as an important supporting component rather than the main project itself.
 
 What the report must contain
 
 1. Introduction
 - Briefly introduce the microbiome field and the difficulty of comparing findings across the literature.
-- Explain the motivation for creating MINDb.
+- Explain the motivation for creating ORDINA.
 - State the project goals clearly.
 - Emphasize centralization, structured curation, reproducibility, and exploration of microbiome–disease associations.
 
@@ -78,7 +78,7 @@ What the report must contain
 - Add a dedicated section presenting Taxon Bridge.
 - Explain why it was needed.
 - Explain its role in organism/taxonomy normalization or taxonomic bridging.
-- Explain how it supports the main MINDb platform.
+- Explain how it supports the main ORDINA platform.
 - Make clear that this component improves the quality and future extensibility of the database.
 
 6. Website / platform presentation
@@ -96,7 +96,7 @@ What the report must contain
 
 8. Conclusion
 - Summarize the value of the project.
-- Reinforce that MINDb provides a structured foundation for centralized microbiome evidence integration and exploration.
+- Reinforce that ORDINA provides a structured foundation for centralized microbiome evidence integration and exploration.
 
 Figures and placeholders
 I will provide the screenshots later. For now:
@@ -105,7 +105,7 @@ I will provide the screenshots later. For now:
 - Add LaTeX comments above each figure saying what screenshot should be inserted there.
 
 At minimum, include placeholders for:
-- A screenshot of the MINDb website homepage or main interface
+- A screenshot of the ORDINA website homepage or main interface
 - A screenshot of the database browsing/exploration page
 - A screenshot showing Taxon Bridge working
 - Optionally a screenshot of an admin/import or graph-related view if it fits naturally
